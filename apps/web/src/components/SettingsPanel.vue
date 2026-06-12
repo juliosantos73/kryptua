@@ -16,7 +16,7 @@
             <span class="setting-desc">
               {{ bioAvailable
                 ? (bioEnabled ? 'Ativo — toque para desativar' : 'Entre sem digitar a password')
-                : bioCheckResult || 'Não disponível neste dispositivo' }}
+                : 'Não disponível neste dispositivo' }}
             </span>
           </div>
           <button
@@ -89,19 +89,16 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick } from 'vue'
 import { useDbStore } from '@/stores/db'
-import { usePlatform } from '@/composables/usePlatform'
 import { useBiometrics } from '@/composables/useBiometrics'
 import type { VaultMeta } from '@/types/vault'
 
 const dbStore = useDbStore()
-const { isNative } = usePlatform()
 const biometrics = useBiometrics()
 
 const bioAvailable = ref(false)
 const bioEnabled = ref(false)
 const bioLoading = ref(false)
 const bioError = ref('')
-const bioCheckResult = ref('') // diagnóstico: mostra o resultado bruto
 
 const showPasswordConfirm = ref(false)
 const confirmPassword = ref('')
@@ -118,17 +115,8 @@ const vaultCreatedAt = computed(() => {
 
 onMounted(async () => {
   vault.value = await dbStore.loadVault()
-
-  // Tenta verificar biometria mesmo sem isNative (para diagnóstico)
-  try {
-    const { BiometricAuth } = await import('@aparajita/capacitor-biometric-auth')
-    const result = await BiometricAuth.checkBiometry()
-    bioCheckResult.value = `isNative=${isNative.value} isAvail=${result.isAvailable} type=${result.biometryType} reason="${result.reason}"`
-    bioAvailable.value = result.isAvailable
-    if (bioAvailable.value) bioEnabled.value = await biometrics.hasQuickUnlock()
-  } catch (e) {
-    bioCheckResult.value = `Erro: ${e instanceof Error ? e.message : String(e)}`
-  }
+  bioAvailable.value = await biometrics.checkAvailability()
+  if (bioAvailable.value) bioEnabled.value = await biometrics.hasQuickUnlock()
 })
 
 async function toggleBiometric() {

@@ -1,10 +1,16 @@
 import { ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'
-import { BiometricAuth } from '@aparajita/capacitor-biometric-auth'
 
 const BIOMETRIC_KEY_STORE = 'kryptua_vault_key'
-// Guardado quando o utilizador clica "Agora não" — evita prompt em cada unlock
 const BIOMETRIC_DISMISSED_KEY = 'kryptua_bio_dismissed'
+
+// Acede ao plugin pelo bridge Capacitor sem importar o pacote no bundle —
+// evita o erro "Class extends value undefined" causado pelo native.js do plugin.
+// O plugin regista-se como 'BiometricAuthNative' (ver @CapacitorPlugin annotation).
+function getPlugin() {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (window as any)?.Capacitor?.Plugins?.BiometricAuthNative ?? null
+}
 
 export function useBiometrics() {
   const isAvailable = ref(false)
@@ -13,17 +19,23 @@ export function useBiometrics() {
 
   async function checkAvailability(): Promise<boolean> {
     try {
-      const result = await BiometricAuth.checkBiometry()
-      isAvailable.value = result.isAvailable
+      const plugin = getPlugin()
+      if (!plugin) { isAvailable.value = false; return false }
+      const result = await plugin.checkBiometry()
+      isAvailable.value = result.isAvailable ?? false
       return isAvailable.value
-    } catch {
+    } catch (e) {
       isAvailable.value = false
       return false
     }
   }
 
   async function authenticate(reason: string): Promise<void> {
-    await BiometricAuth.authenticate({
+    const plugin = getPlugin()
+    if (!plugin) throw new Error('BiometricAuthNative plugin não disponível')
+    // Chama internalAuthenticate directamente (método @PluginMethod no Java)
+    // com as chaves que o Java lê: reason, cancelTitle, allowDeviceCredential
+    await plugin.internalAuthenticate({
       reason,
       cancelTitle: 'Cancelar',
       allowDeviceCredential: false,
@@ -68,12 +80,8 @@ export function useBiometrics() {
   }
 
   async function hasQuickUnlock(): Promise<boolean> {
-    try {
-      const { value } = await Preferences.get({ key: BIOMETRIC_KEY_STORE })
-      return !!value
-    } catch {
-      return false
-    }
+    const { value } = await Preferences.get({ key: BIOMETRIC_KEY_STORE })
+    return !!value
   }
 
   async function dismiss(): Promise<void> {
@@ -81,12 +89,8 @@ export function useBiometrics() {
   }
 
   async function isDismissed(): Promise<boolean> {
-    try {
-      const { value } = await Preferences.get({ key: BIOMETRIC_DISMISSED_KEY })
-      return value === 'true'
-    } catch {
-      return false
-    }
+    const { value } = await Preferences.get({ key: BIOMETRIC_DISMISSED_KEY })
+    return value === 'true'
   }
 
   return {
