@@ -1,23 +1,11 @@
-/**
- * Biometria + armazenamento seguro via Capacitor bridge.
- *
- * Acessa os plugins pelo bridge nativo (window.Capacitor.Plugins) em vez de
- * imports npm — funciona em qualquer versão do Capacitor sem dependência de
- * build. No browser normal, todas as chamadas falham silenciosamente.
- *
- * Fluxo de Quick Unlock:
- * 1. setupQuickUnlock(key): autentica → armazena chave em EncryptedSharedPreferences
- * 2. quickUnlock(): autentica → recupera chave → devolve sem rodar Argon2id
- */
-
 import { ref } from 'vue'
 import { Preferences } from '@capacitor/preferences'
 
 const BIOMETRIC_KEY_STORE = 'kryptua_vault_key'
+// Guardado quando o utilizador clica "Agora não" — evita prompt em cada unlock
+const BIOMETRIC_DISMISSED_KEY = 'kryptua_bio_dismissed'
 
-// Acessa o plugin de biometria pelo bridge Capacitor (evita import de pacote não-publicado)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function getBiometricPlugin(): any | null {
+function getBiometricPlugin(): unknown {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const cap = (window as any).Capacitor
   return cap?.Plugins?.BiometricAuth ?? null
@@ -32,7 +20,8 @@ export function useBiometrics() {
     try {
       const plugin = getBiometricPlugin()
       if (!plugin) { isAvailable.value = false; return false }
-      const result = await plugin.checkBiometry()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const result = await (plugin as any).checkBiometry()
       isAvailable.value = result.isAvailable ?? false
       return isAvailable.value
     } catch {
@@ -44,7 +33,8 @@ export function useBiometrics() {
   async function authenticate(reason: string): Promise<boolean> {
     const plugin = getBiometricPlugin()
     if (!plugin) throw new Error('BiometricAuth plugin não disponível')
-    await plugin.authenticate({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (plugin as any).authenticate({
       reason,
       title: 'Kryptua',
       cancelTitle: 'Cancelar',
@@ -59,6 +49,7 @@ export function useBiometrics() {
       await authenticate('Confirme sua identidade para ativar o Quick Unlock')
       const keyHex = Array.from(key).map((b) => b.toString(16).padStart(2, '0')).join('')
       await Preferences.set({ key: BIOMETRIC_KEY_STORE, value: keyHex })
+      await Preferences.remove({ key: BIOMETRIC_DISMISSED_KEY })
       return true
     } catch (e) {
       error.value = e instanceof Error ? e.message : 'Falha ao configurar biometria'
@@ -97,6 +88,21 @@ export function useBiometrics() {
     }
   }
 
+  // Regista que o utilizador optou por não usar biometria —
+  // impede que o prompt apareça a cada unlock com senha
+  async function dismiss(): Promise<void> {
+    await Preferences.set({ key: BIOMETRIC_DISMISSED_KEY, value: 'true' })
+  }
+
+  async function isDismissed(): Promise<boolean> {
+    try {
+      const { value } = await Preferences.get({ key: BIOMETRIC_DISMISSED_KEY })
+      return value === 'true'
+    } catch {
+      return false
+    }
+  }
+
   return {
     isAvailable,
     isLoading,
@@ -106,5 +112,7 @@ export function useBiometrics() {
     quickUnlock,
     clearQuickUnlock,
     hasQuickUnlock,
+    dismiss,
+    isDismissed,
   }
 }

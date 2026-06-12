@@ -96,6 +96,8 @@ onMounted(async () => {
   if (isNative.value) {
     const available = await biometrics.checkAvailability()
     if (available) hasBiometric.value = await biometrics.hasQuickUnlock()
+    // Se o utilizador já recusou uma vez, não volta a pedir automaticamente
+    // (pode ativar manualmente em Definições > Segurança)
   }
 
   if (!hasBiometric.value) inputRef.value?.focus()
@@ -131,8 +133,8 @@ async function handleUnlock() {
 
     await cryptoStore.unlock(password.value, vault.salt)
 
-    // Verifica se deve oferecer biometria (nativo, disponível, ainda não configurada)
-    if (isNative.value && !hasBiometric.value) {
+    // Oferece biometria apenas se: nativo, disponível, não configurada e não recusada antes
+    if (isNative.value && !hasBiometric.value && !(await biometrics.isDismissed())) {
       const available = await biometrics.checkAvailability()
       if (available) {
         pendingPassword = password.value
@@ -166,9 +168,10 @@ async function enableBiometrics() {
   }
 }
 
-function skipBiometrics() {
+async function skipBiometrics() {
   pendingPassword = ''
   showBioPrompt.value = false
+  await biometrics.dismiss() // não volta a perguntar automaticamente; pode ativar em Definições
   router.push({ name: 'vault' })
 }
 

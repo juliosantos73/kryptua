@@ -11,8 +11,8 @@
         <button
           v-for="f in filters"
           :key="f.value"
-          :class="['nav-item', { active: activeFilter === f.value }]"
-          @click="activeFilter = f.value"
+          :class="['nav-item', { active: activeFilter === f.value && !showSettings }]"
+          @click="activeFilter = f.value; showSettings = false"
         >
           <span class="nav-icon">{{ f.icon }}</span>{{ f.label }}
         </button>
@@ -21,6 +21,12 @@
         <div :class="['sync-status', syncStore.status]">
           <span class="sync-dot" />{{ syncLabel }}
         </div>
+        <button
+          :class="['btn-settings', { active: showSettings }]"
+          @click="showSettings = !showSettings"
+        >
+          ⚙️ Definições
+        </button>
         <button class="btn-lock" @click="lock">🔒 Bloquear</button>
       </div>
     </aside>
@@ -46,7 +52,7 @@
 
     <!-- ── DETALHE do item ── -->
     <section
-      v-show="!isMobileLayout || mobilePanel === 'detail'"
+      v-show="!isMobileLayout ? !showSettings : mobilePanel === 'detail'"
       class="detail-panel"
     >
       <!-- Botão voltar mobile -->
@@ -56,16 +62,34 @@
       <ItemDetail :item="selectedItem" @delete="handleDelete" />
     </section>
 
+    <!-- ── DEFINIÇÕES (desktop: substitui detalhe; mobile: painel próprio) ── -->
+    <section
+      v-show="!isMobileLayout ? showSettings : mobilePanel === 'settings'"
+      class="detail-panel"
+    >
+      <button v-if="isMobileLayout && mobilePanel === 'settings'" class="btn-back" @click="mobilePanel = 'list'">
+        ← Voltar
+      </button>
+      <SettingsPanel />
+    </section>
+
     <!-- ── BOTTOM NAV (mobile) ── -->
     <nav v-if="isMobileLayout" class="bottom-nav">
       <button
         v-for="f in filters"
         :key="f.value"
-        :class="['bottom-tab', { active: activeFilter === f.value }]"
+        :class="['bottom-tab', { active: activeFilter === f.value && mobilePanel !== 'settings' }]"
         @click="activeFilter = f.value; mobilePanel = 'list'"
       >
         <span>{{ f.icon }}</span>
         <span class="tab-label">{{ f.label }}</span>
+      </button>
+      <button
+        :class="['bottom-tab', { active: mobilePanel === 'settings' }]"
+        @click="mobilePanel = 'settings'"
+      >
+        <span>⚙️</span>
+        <span class="tab-label">Definições</span>
       </button>
       <button class="bottom-tab" @click="lock">
         <span>🔒</span>
@@ -87,6 +111,7 @@ import { usePlatform } from '@/composables/usePlatform'
 import ItemList from '@/components/ItemList.vue'
 import ItemDetail from '@/components/ItemDetail.vue'
 import AddItemModal from '@/components/AddItemModal.vue'
+import SettingsPanel from '@/components/SettingsPanel.vue'
 import type { ItemRow, ItemPayload, ItemType } from '@/types/vault'
 
 const router = useRouter()
@@ -98,7 +123,8 @@ const { isNative } = usePlatform()
 const selectedItem = ref<ItemRow | null>(null)
 const showModal = ref(false)
 const activeFilter = ref<'all' | ItemType>('all')
-const mobilePanel = ref<'list' | 'detail'>('list')
+const mobilePanel = ref<'list' | 'detail' | 'settings'>('list')
+const showSettings = ref(false) // desktop only
 
 // Mobile: nativo Capacitor OU viewport estreito
 const isMobileLayout = computed(() => isNative.value || window.innerWidth < 768)
@@ -310,6 +336,24 @@ function lock() {
 .sync-dot-sm.disconnected { background: var(--color-border); }
 .sync-dot-sm.error        { background: var(--color-danger); }
 
+.btn-settings {
+  width: 100%;
+  padding: 0.55rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-align: left;
+  transition: all 0.15s;
+}
+.btn-settings:hover,
+.btn-settings.active {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
+}
+
 .btn-lock {
   width: 100%;
   padding: 0.55rem 0.75rem;
@@ -384,7 +428,6 @@ function lock() {
   background: var(--color-surface);
   border-top: 1px solid var(--color-border);
   grid-row: 2;
-  /* Área segura para iPhones com notch (ignorado no Android sem entalhe) */
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
 

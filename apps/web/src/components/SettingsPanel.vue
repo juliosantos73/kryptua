@@ -1,0 +1,383 @@
+<template>
+  <div class="settings-panel">
+    <div class="settings-header">
+      <h2>Definições</h2>
+    </div>
+
+    <div class="settings-body">
+
+      <!-- ── Segurança ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Segurança</h3>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Quick Unlock (Biometria)</span>
+            <span class="setting-desc">
+              {{ bioAvailable
+                ? (bioEnabled ? 'Ativo — toque para desativar' : 'Entre sem digitar a password')
+                : 'Não disponível neste dispositivo' }}
+            </span>
+          </div>
+          <button
+            v-if="bioAvailable"
+            :class="['toggle', { on: bioEnabled }]"
+            :disabled="bioLoading"
+            :aria-label="bioEnabled ? 'Desativar biometria' : 'Ativar biometria'"
+            @click="toggleBiometric"
+          >
+            <span class="toggle-knob" />
+          </button>
+        </div>
+
+        <!-- Formulário de confirmação de password para ativar biometria -->
+        <transition name="slide">
+          <div v-if="showPasswordConfirm" class="confirm-block">
+            <p class="confirm-hint">Insira a Master Password para confirmar a ativação:</p>
+            <div class="confirm-row">
+              <input
+                ref="confirmInputRef"
+                v-model="confirmPassword"
+                type="password"
+                placeholder="Master Password"
+                autocomplete="current-password"
+                class="confirm-input"
+                @keydown.enter="confirmEnable"
+              />
+              <button class="btn-confirm" :disabled="bioLoading || !confirmPassword" @click="confirmEnable">
+                {{ bioLoading ? '…' : 'OK' }}
+              </button>
+              <button class="btn-cancel-sm" :disabled="bioLoading" @click="cancelEnable">✕</button>
+            </div>
+            <p v-if="bioError" class="bio-error">{{ bioError }}</p>
+          </div>
+        </transition>
+      </section>
+
+      <!-- ── Vault ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Vault</h3>
+        <div class="setting-row no-action">
+          <div class="setting-info">
+            <span class="setting-label">Nome</span>
+            <span class="setting-desc">{{ vaultName }}</span>
+          </div>
+        </div>
+        <div class="setting-row no-action">
+          <div class="setting-info">
+            <span class="setting-label">Criado em</span>
+            <span class="setting-desc">{{ vaultCreatedAt }}</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Versão ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Aplicação</h3>
+        <div class="setting-row no-action">
+          <div class="setting-info">
+            <span class="setting-label">Versão</span>
+            <span class="setting-desc">0.1.0 (debug)</span>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { useDbStore } from '@/stores/db'
+import { usePlatform } from '@/composables/usePlatform'
+import { useBiometrics } from '@/composables/useBiometrics'
+
+const dbStore = useDbStore()
+const { isNative } = usePlatform()
+const biometrics = useBiometrics()
+
+const bioAvailable = ref(false)
+const bioEnabled = ref(false)
+const bioLoading = ref(false)
+const bioError = ref('')
+
+const showPasswordConfirm = ref(false)
+const confirmPassword = ref('')
+const confirmInputRef = ref<HTMLInputElement | null>(null)
+
+const vault = computed(() => dbStore.loadVault())
+const vaultName = computed(() => vault.value?.name ?? '—')
+const vaultCreatedAt = computed(() => {
+  if (!vault.value) return '—'
+  return new Date(vault.value.createdAt).toLocaleDateString('pt-PT', {
+    year: 'numeric', month: 'long', day: 'numeric',
+  })
+})
+
+onMounted(async () => {
+  if (!isNative.value) return
+  bioAvailable.value = await biometrics.checkAvailability()
+  if (bioAvailable.value) bioEnabled.value = await biometrics.hasQuickUnlock()
+})
+
+async function toggleBiometric() {
+  if (bioEnabled.value) {
+    await disableBiometric()
+  } else {
+    showPasswordConfirm.value = true
+    await nextTick()
+    confirmInputRef.value?.focus()
+  }
+}
+
+async function confirmEnable() {
+  if (!confirmPassword.value || !vault.value) return
+  bioLoading.value = true
+  bioError.value = ''
+  try {
+    const wasm = await import('kryptua-core') as unknown as { derive_key: (p: string, s: Uint8Array) => Uint8Array }
+    const key = wasm.derive_key(confirmPassword.value, vault.value.salt)
+    const ok = await biometrics.setupQuickUnlock(key)
+    if (ok) {
+      bioEnabled.value = true
+      showPasswordConfirm.value = false
+      confirmPassword.value = ''
+    } else {
+      bioError.value = biometrics.error.value ?? 'Falha ao ativar biometria'
+    }
+  } catch (e) {
+    bioError.value = e instanceof Error ? e.message : 'Password incorreta ou erro de biometria'
+  } finally {
+    bioLoading.value = false
+  }
+}
+
+function cancelEnable() {
+  showPasswordConfirm.value = false
+  confirmPassword.value = ''
+  bioError.value = ''
+}
+
+async function disableBiometric() {
+  bioLoading.value = true
+  try {
+    await biometrics.clearQuickUnlock()
+    await biometrics.dismiss() // mantém o flag para não pedir automaticamente
+    bioEnabled.value = false
+  } finally {
+    bioLoading.value = false
+  }
+}
+</script>
+
+<style scoped>
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-bg);
+  overflow: hidden;
+}
+
+.settings-header {
+  padding: 1.25rem 1.5rem 0.75rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+  flex-shrink: 0;
+}
+
+.settings-header h2 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.settings-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 0;
+}
+
+.settings-section {
+  margin-bottom: 0.5rem;
+}
+
+.section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-muted);
+  padding: 0.5rem 1.5rem 0.4rem;
+}
+
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1.5rem;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  gap: 1rem;
+}
+
+.setting-row:last-of-type {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.setting-row.no-action {
+  cursor: default;
+}
+
+.setting-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.setting-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.setting-desc {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Toggle switch */
+.toggle {
+  position: relative;
+  width: 44px;
+  height: 26px;
+  border-radius: 13px;
+  background: var(--color-border);
+  border: none;
+  flex-shrink: 0;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+
+.toggle.on {
+  background: var(--color-accent);
+}
+
+.toggle:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toggle-knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  transition: transform 0.2s;
+  display: block;
+}
+
+.toggle.on .toggle-knob {
+  transform: translateX(18px);
+}
+
+/* Bloco de confirmação de password */
+.confirm-block {
+  padding: 0.75rem 1.5rem 1rem;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.confirm-hint {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.6rem;
+}
+
+.confirm-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.confirm-input {
+  flex: 1;
+  padding: 0.55rem 0.75rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 0.9rem;
+  outline: none;
+  transition: border-color 0.15s;
+  min-width: 0;
+}
+
+.confirm-input:focus {
+  border-color: var(--color-accent);
+}
+
+.btn-confirm {
+  padding: 0.55rem 1rem;
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-cancel-sm {
+  padding: 0.55rem 0.65rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  flex-shrink: 0;
+}
+
+.bio-error {
+  font-size: 0.78rem;
+  color: var(--color-danger);
+  margin-top: 0.5rem;
+}
+
+/* Animação do bloco de confirmação */
+.slide-enter-active,
+.slide-leave-active {
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.slide-enter-from,
+.slide-leave-to {
+  opacity: 0;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+.slide-enter-to,
+.slide-leave-from {
+  opacity: 1;
+  max-height: 200px;
+}
+</style>
