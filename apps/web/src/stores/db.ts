@@ -57,6 +57,13 @@ export const useDbStore = defineStore('db', () => {
 
       CREATE INDEX IF NOT EXISTS idx_items_vault ON items(vault_id);
       CREATE INDEX IF NOT EXISTS idx_items_type  ON items(item_type);
+
+      CREATE TABLE IF NOT EXISTS vault_state (
+        vault_id   TEXT PRIMARY KEY,
+        ydoc_state BLOB NOT NULL,
+        updated_at INTEGER NOT NULL,
+        FOREIGN KEY (vault_id) REFERENCES vault_meta(id)
+      );
     `)
   }
 
@@ -132,6 +139,25 @@ export const useDbStore = defineStore('db', () => {
     db.exec('DELETE FROM items WHERE id = ?', { bind: [id] })
   }
 
+  // --- Yjs state ---
+
+  function saveYdocState(vaultId: string, state: Uint8Array): void {
+    db.exec(
+      `INSERT OR REPLACE INTO vault_state (vault_id, ydoc_state, updated_at)
+       VALUES (?, ?, ?)`,
+      { bind: [vaultId, state, Date.now()] },
+    )
+  }
+
+  function loadYdocState(vaultId: string): Uint8Array | null {
+    const rows: Record<string, unknown>[] = db.exec(
+      'SELECT ydoc_state FROM vault_state WHERE vault_id = ?',
+      { bind: [vaultId], rowMode: 'object', returnValue: 'resultRows' },
+    )
+    if (!rows.length) return null
+    return rows[0]['ydoc_state'] as Uint8Array
+  }
+
   return {
     isReady,
     error,
@@ -142,5 +168,7 @@ export const useDbStore = defineStore('db', () => {
     saveItem,
     listItems,
     deleteItem,
+    saveYdocState,
+    loadYdocState,
   }
 })
