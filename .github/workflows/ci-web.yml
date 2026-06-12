@@ -40,7 +40,7 @@ jobs:
 
       - name: Build core-crypto → Wasm
         working-directory: core-crypto
-        run: wasm-pack build --target web --release
+        run: wasm-pack build --target bundler --release
 
       # --- Vue ---
       - uses: actions/setup-node@v4

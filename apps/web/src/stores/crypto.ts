@@ -21,6 +21,8 @@ export const useCryptoStore = defineStore('crypto', () => {
 
   async function loadWasm(): Promise<KryptuaWasm> {
     if (!wasmModule) {
+      // Com --target bundler o Wasm é importado estaticamente pelo bundler —
+      // não há init() a chamar; o módulo está pronto ao ser importado.
       wasmModule = await import('kryptua-core') as unknown as KryptuaWasm
     }
     return wasmModule
