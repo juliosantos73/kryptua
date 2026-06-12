@@ -1,12 +1,12 @@
 <template>
-  <div class="vault-layout">
-    <!-- Sidebar -->
-    <aside class="sidebar">
+  <div :class="['vault-layout', { 'is-mobile': isMobileLayout }]">
+
+    <!-- ── DESKTOP: Sidebar ── -->
+    <aside v-if="!isMobileLayout" class="sidebar">
       <div class="sidebar-logo">
         <span>🔐</span>
         <span class="sidebar-title">Kryptua</span>
       </div>
-
       <nav class="sidebar-nav">
         <button
           v-for="f in filters"
@@ -14,41 +14,66 @@
           :class="['nav-item', { active: activeFilter === f.value }]"
           @click="activeFilter = f.value"
         >
-          <span class="nav-icon">{{ f.icon }}</span>
-          {{ f.label }}
+          <span class="nav-icon">{{ f.icon }}</span>{{ f.label }}
         </button>
       </nav>
-
       <div class="sidebar-footer">
         <div :class="['sync-status', syncStore.status]">
-          <span class="sync-dot" />
-          {{ syncLabel }}
+          <span class="sync-dot" />{{ syncLabel }}
         </div>
         <button class="btn-lock" @click="lock">🔒 Bloquear</button>
       </div>
     </aside>
 
-    <!-- Lista de itens -->
-    <section class="list-panel">
+    <!-- ── LISTA de itens ── -->
+    <section
+      v-show="!isMobileLayout || mobilePanel === 'list'"
+      class="list-panel"
+    >
+      <!-- Header mobile -->
+      <div v-if="isMobileLayout" class="mobile-header">
+        <span class="mobile-logo">🔐 Kryptua</span>
+        <div :class="['sync-dot-sm', syncStore.status]" :title="syncLabel" />
+      </div>
+
       <ItemList
         :items="filteredItems"
         :selected-id="selectedItem?.id"
-        @select="selectedItem = $event"
+        @select="onItemSelect"
         @add="showModal = true"
       />
     </section>
 
-    <!-- Detalhe do item -->
-    <section class="detail-panel">
+    <!-- ── DETALHE do item ── -->
+    <section
+      v-show="!isMobileLayout || mobilePanel === 'detail'"
+      class="detail-panel"
+    >
+      <!-- Botão voltar mobile -->
+      <button v-if="isMobileLayout && mobilePanel === 'detail'" class="btn-back" @click="mobilePanel = 'list'">
+        ← Voltar
+      </button>
       <ItemDetail :item="selectedItem" @delete="handleDelete" />
     </section>
 
-    <!-- Modal de criação -->
-    <AddItemModal
-      v-if="showModal"
-      @close="showModal = false"
-      @save="handleSave"
-    />
+    <!-- ── BOTTOM NAV (mobile) ── -->
+    <nav v-if="isMobileLayout" class="bottom-nav">
+      <button
+        v-for="f in filters"
+        :key="f.value"
+        :class="['bottom-tab', { active: activeFilter === f.value }]"
+        @click="activeFilter = f.value; mobilePanel = 'list'"
+      >
+        <span>{{ f.icon }}</span>
+        <span class="tab-label">{{ f.label }}</span>
+      </button>
+      <button class="bottom-tab" @click="lock">
+        <span>🔒</span>
+        <span class="tab-label">Sair</span>
+      </button>
+    </nav>
+
+    <AddItemModal v-if="showModal" @close="showModal = false" @save="handleSave" />
   </div>
 </template>
 
@@ -58,6 +83,7 @@ import { useRouter } from 'vue-router'
 import { useCryptoStore } from '@/stores/crypto'
 import { useDbStore } from '@/stores/db'
 import { useSyncStore } from '@/stores/sync'
+import { usePlatform } from '@/composables/usePlatform'
 import ItemList from '@/components/ItemList.vue'
 import ItemDetail from '@/components/ItemDetail.vue'
 import AddItemModal from '@/components/AddItemModal.vue'
@@ -67,10 +93,15 @@ const router = useRouter()
 const cryptoStore = useCryptoStore()
 const dbStore = useDbStore()
 const syncStore = useSyncStore()
+const { isNative } = usePlatform()
 
 const selectedItem = ref<ItemRow | null>(null)
 const showModal = ref(false)
 const activeFilter = ref<'all' | ItemType>('all')
+const mobilePanel = ref<'list' | 'detail'>('list')
+
+// Mobile: nativo Capacitor OU viewport estreito
+const isMobileLayout = computed(() => isNative.value || window.innerWidth < 768)
 
 const filters = [
   { value: 'all' as const,         icon: '🗂',  label: 'Todos' },
@@ -80,15 +111,14 @@ const filters = [
 ]
 
 const syncLabel = computed(() => ({
-  connected:    '● Sincronizado',
-  connecting:   '◌ Conectando...',
-  disconnected: '○ Offline',
-  error:        '✕ Erro sync',
+  connected:    'Sincronizado',
+  connecting:   'Conectando...',
+  disconnected: 'Offline',
+  error:        'Erro sync',
 }[syncStore.status]))
 
-// Items derivados do Yjs — re-computados a cada update via `version`
 const allItems = computed<ItemRow[]>(() => {
-  void syncStore.version // tracking de dependência reativo
+  void syncStore.version
   return syncStore.getItems().map((i) => ({
     id: i.id,
     vaultId: vault.value?.id ?? '',
@@ -108,15 +138,12 @@ const filteredItems = computed(() =>
 
 const vault = ref<ReturnType<typeof dbStore.loadVault>>(null)
 
-// Persiste o estado Yjs no SQLite sempre que o doc muda (debounced 500ms)
 let persistTimer: ReturnType<typeof setTimeout> | null = null
-function schedulePersist(): void {
+function schedulePersist() {
   if (persistTimer) clearTimeout(persistTimer)
   persistTimer = setTimeout(() => {
     const state = syncStore.getDocState()
-    if (state && vault.value) {
-      dbStore.saveYdocState(vault.value.id, state)
-    }
+    if (state && vault.value) dbStore.saveYdocState(vault.value.id, state)
   }, 500)
 }
 
@@ -128,11 +155,8 @@ onMounted(async () => {
   const savedState = dbStore.loadYdocState(vault.value.id)
   syncStore.init(vault.value.id, savedState ?? undefined)
 
-  // Persiste no SQLite a cada update do Yjs
   const doc = syncStore.ydoc
-  if (doc) {
-    doc.on('update', schedulePersist)
-  }
+  if (doc) doc.on('update', schedulePersist)
 })
 
 onUnmounted(() => {
@@ -140,34 +164,40 @@ onUnmounted(() => {
   syncStore.destroy()
 })
 
-// Deseleciona item se ele for apagado por outro dispositivo
 watch(allItems, (items) => {
   if (selectedItem.value && !items.find((i) => i.id === selectedItem.value!.id)) {
     selectedItem.value = null
+    mobilePanel.value = 'list'
   }
 })
 
-function handleSave(title: string, type: ItemType, payload: ItemPayload): void {
-  if (!vault.value) return
+function onItemSelect(item: ItemRow) {
+  selectedItem.value = item
+  if (isMobileLayout.value) mobilePanel.value = 'detail'
+}
 
+function handleSave(title: string, type: ItemType, payload: ItemPayload) {
+  if (!vault.value) return
   const blob = cryptoStore.encryptItem(JSON.stringify(payload))
   const now = Date.now()
   const id = crypto.randomUUID()
-
   syncStore.addItem(id, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
-  // Seleciona o novo item após o Vue re-renderizar
   setTimeout(() => {
     selectedItem.value = allItems.value.find((i) => i.id === id) ?? null
+    if (isMobileLayout.value && selectedItem.value) mobilePanel.value = 'detail'
   }, 0)
   showModal.value = false
 }
 
-function handleDelete(id: string): void {
+function handleDelete(id: string) {
   syncStore.deleteItem(id)
-  if (selectedItem.value?.id === id) selectedItem.value = null
+  if (selectedItem.value?.id === id) {
+    selectedItem.value = null
+    mobilePanel.value = 'list'
+  }
 }
 
-function lock(): void {
+function lock() {
   syncStore.destroy()
   cryptoStore.lock()
   router.push({ name: 'unlock' })
@@ -175,6 +205,7 @@ function lock(): void {
 </script>
 
 <style scoped>
+/* ── Desktop: 3 colunas ── */
 .vault-layout {
   height: 100%;
   display: grid;
@@ -182,6 +213,14 @@ function lock(): void {
   overflow: hidden;
 }
 
+/* ── Mobile: coluna única + bottom nav ── */
+.vault-layout.is-mobile {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr auto;
+  padding-bottom: 0;
+}
+
+/* Sidebar desktop */
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -195,13 +234,10 @@ function lock(): void {
   gap: 0.6rem;
   padding: 1.1rem 1rem;
   border-bottom: 1px solid var(--color-border);
+  font-size: 1.1rem;
 }
 
-.sidebar-title {
-  font-weight: 700;
-  font-size: 1rem;
-  color: var(--color-accent);
-}
+.sidebar-title { font-weight: 700; font-size: 1rem; color: var(--color-accent); }
 
 .sidebar-nav {
   flex: 1;
@@ -257,12 +293,22 @@ function lock(): void {
 .sync-status.error        { color: var(--color-danger); }
 
 .sync-dot {
-  width: 6px;
-  height: 6px;
+  width: 6px; height: 6px;
   border-radius: 50%;
   background: currentColor;
   flex-shrink: 0;
 }
+
+/* Sync dot compacto para mobile header */
+.sync-dot-sm {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sync-dot-sm.connected    { background: var(--color-success); }
+.sync-dot-sm.connecting   { background: #f6ad55; }
+.sync-dot-sm.disconnected { background: var(--color-border); }
+.sync-dot-sm.error        { background: var(--color-danger); }
 
 .btn-lock {
   width: 100%;
@@ -275,9 +321,9 @@ function lock(): void {
   text-align: left;
   transition: all 0.15s;
 }
-
 .btn-lock:hover { border-color: var(--color-danger); color: var(--color-danger); }
 
+/* Painéis */
 .list-panel {
   border-right: 1px solid var(--color-border);
   overflow: hidden;
@@ -285,10 +331,84 @@ function lock(): void {
   flex-direction: column;
 }
 
+.is-mobile .list-panel {
+  border-right: none;
+  grid-row: 1;
+}
+
 .detail-panel {
   overflow: hidden;
   display: flex;
   flex-direction: column;
   background: var(--color-bg);
+}
+
+.is-mobile .detail-panel {
+  grid-row: 1;
+}
+
+/* Mobile header no topo da lista */
+.mobile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.mobile-logo {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--color-accent);
+}
+
+/* Botão voltar no detalhe mobile */
+.btn-back {
+  padding: 0.75rem 1rem;
+  background: var(--color-surface);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-accent);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  width: 100%;
+  flex-shrink: 0;
+}
+
+/* Bottom navigation bar (mobile) */
+.bottom-nav {
+  display: flex;
+  align-items: stretch;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  grid-row: 2;
+  /* Área segura para iPhones com notch (ignorado no Android sem entalhe) */
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.bottom-tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.2rem;
+  padding: 0.6rem 0.25rem;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 1.25rem;
+  transition: color 0.15s;
+}
+
+.bottom-tab.active { color: var(--color-accent); }
+.bottom-tab:hover  { color: var(--color-text); }
+
+.tab-label {
+  font-size: 0.65rem;
+  font-weight: 500;
+  line-height: 1;
 }
 </style>
