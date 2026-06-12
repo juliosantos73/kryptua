@@ -1,10 +1,13 @@
 use wasm_bindgen::prelude::*;
 
-mod crypto;
-mod kdf;
+pub mod crypto;
+pub mod kdf;
+pub mod models;
+pub mod vault;
 
-pub use crypto::{encrypt, decrypt};
+pub use crypto::{decrypt, encrypt};
 pub use kdf::derive_key;
+pub use vault::VaultManager;
 
 #[wasm_bindgen]
 pub fn version() -> String {
