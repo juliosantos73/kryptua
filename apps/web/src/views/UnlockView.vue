@@ -1,12 +1,27 @@
 <template>
   <div class="unlock-layout">
+    <!-- Prompt de ativação de biometria (sobrepõe o ecrã de unlock) -->
+    <div v-if="showBioPrompt" class="bio-prompt-overlay">
+      <div class="bio-prompt-card">
+        <span class="bio-icon-lg">👆</span>
+        <h3>Ativar Quick Unlock?</h3>
+        <p>Nas próximas sessões poderá entrar com biometria sem digitar a Master Password.</p>
+        <button class="btn-primary" :disabled="bioSetupLoading" @click="enableBiometrics">
+          {{ bioSetupLoading ? 'Configurando...' : 'Ativar Biometria' }}
+        </button>
+        <button class="btn-ghost" :disabled="bioSetupLoading" @click="skipBiometrics">
+          Agora não
+        </button>
+      </div>
+    </div>
+
     <div class="unlock-card">
       <div class="logo">
         <span class="logo-icon">🔐</span>
         <h1>Kryptua</h1>
       </div>
 
-      <!-- Botão de biometria (só aparece no nativo com quick unlock configurado) -->
+      <!-- Botão de biometria (só aparece no nativo com quick unlock já configurado) -->
       <button
         v-if="hasBiometric"
         class="btn-biometric"
@@ -67,6 +82,13 @@ const errorMsg = ref('')
 const inputRef = ref<HTMLInputElement | null>(null)
 const hasBiometric = ref(false)
 
+// Estado do prompt de ativação de biometria
+const showBioPrompt = ref(false)
+const bioSetupLoading = ref(false)
+// Guardamos a password temporariamente para re-derivar a chave no momento do setup
+// (a navegação só acontece depois da decisão do utilizador)
+let pendingPassword = ''
+
 onMounted(async () => {
   await dbStore.init()
   if (!dbStore.hasVault()) { router.replace({ name: 'setup' }); return }
@@ -80,12 +102,10 @@ onMounted(async () => {
 })
 
 async function unlockWithKey(key: Uint8Array) {
-  // Injeta a chave diretamente no store sem re-derivar (usado pela biometria)
   const { VaultManager } = await import('kryptua-core') as unknown as {
     VaultManager: new (key: Uint8Array) => { encrypt_item: (j: string) => Uint8Array; decrypt_item: (b: Uint8Array) => string }
   }
   const manager = new VaultManager(key)
-  // Acessa o store diretamente para injetar o manager sem chamar derive_key
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ;(cryptoStore as any).manager = manager
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -111,14 +131,14 @@ async function handleUnlock() {
 
     await cryptoStore.unlock(password.value, vault.salt)
 
-    // Oferece configurar biometria após primeiro unlock com senha (nativo)
+    // Verifica se deve oferecer biometria (nativo, disponível, ainda não configurada)
     if (isNative.value && !hasBiometric.value) {
       const available = await biometrics.checkAvailability()
       if (available) {
-        // A chave está no manager — extraímos via encrypt de um payload de teste
-        // O fluxo correto: o store expõe a chave como método interno
-        // Para esta fase, registramos biometria de forma lazy após o unlock
-        setupBiometricLazy()
+        pendingPassword = password.value
+        password.value = ''
+        showBioPrompt.value = true
+        return // aguarda decisão do utilizador — navegação acontece em enableBiometrics/skipBiometrics
       }
     }
 
@@ -130,17 +150,26 @@ async function handleUnlock() {
   }
 }
 
-// Configura biometria em segundo plano após unlock com senha
-async function setupBiometricLazy() {
-  // Deriva novamente a chave para armazenar (único momento em que temos senha + salt)
-  const vault = dbStore.loadVault()
-  if (!vault) return
+async function enableBiometrics() {
+  bioSetupLoading.value = true
   try {
+    const vault = dbStore.loadVault()
+    if (!vault) return
     const wasm = await import('kryptua-core') as unknown as { derive_key: (p: string, s: Uint8Array) => Uint8Array }
-    const key = wasm.derive_key(password.value, vault.salt)
+    const key = wasm.derive_key(pendingPassword, vault.salt)
     await biometrics.setupQuickUnlock(key)
     hasBiometric.value = true
-  } catch { /* silencioso — biometria é opcional */ }
+  } catch { /* biometria é opcional — falha silenciosa */ } finally {
+    pendingPassword = ''
+    bioSetupLoading.value = false
+    router.push({ name: 'vault' })
+  }
+}
+
+function skipBiometrics() {
+  pendingPassword = ''
+  showBioPrompt.value = false
+  router.push({ name: 'vault' })
 }
 
 function goToSetup() { router.push({ name: 'setup' }) }
@@ -154,6 +183,48 @@ function goToSetup() { router.push({ name: 'setup' }) }
   justify-content: center;
   background: var(--color-bg);
   padding: 1rem;
+}
+
+/* Overlay do prompt de biometria */
+.bio-prompt-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 100;
+  padding: 1rem;
+}
+
+.bio-prompt-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 2rem;
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) var(--radius) var(--radius);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.bio-icon-lg {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.bio-prompt-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.bio-prompt-card p {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  margin-bottom: 0.25rem;
 }
 
 .unlock-card {
@@ -265,13 +336,21 @@ input:focus { border-color: var(--color-accent); }
 
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
-/* Mobile: usa toda a tela */
 @media (max-width: 480px) {
   .unlock-card {
     padding: 2rem 1.5rem;
     border-radius: var(--radius);
     border: none;
     background: transparent;
+  }
+
+  .bio-prompt-overlay {
+    align-items: flex-end;
+  }
+
+  .bio-prompt-card {
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: calc(2rem + env(safe-area-inset-bottom));
   }
 }
 </style>
