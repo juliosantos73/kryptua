@@ -1,5 +1,5 @@
 // Stub de tipos para o plugin de biometria (instalado apenas no projeto mobile)
-declare module '@capacitor-community/biometric-auth' {
+declare module '@aparajita/capacitor-biometric-auth' {
   export interface CheckBiometryResult {
     isAvailable: boolean
     biometryType?: number
