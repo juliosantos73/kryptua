@@ -1,0 +1,29 @@
+# Rust / Wasm
+target/
+pkg/
+*.wasm
+Cargo.lock
+
+# Node / Vue
+node_modules/
+dist/
+.vite/
+*.local
+
+# Go
+relay-server/kryptua-relay
+*.exe
+
+# IDE
+.vscode/settings.json
+.idea/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+!.env.example

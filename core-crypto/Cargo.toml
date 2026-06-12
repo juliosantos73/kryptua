@@ -1,0 +1,21 @@
+[package]
+name = "kryptua-core"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2"
+argon2 = { version = "0.5", features = ["alloc"] }
+aes-gcm = "0.10"
+getrandom = { version = "0.2", features = ["js"] }
+zeroize = { version = "1.8", features = ["derive"] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[profile.release]
+opt-level = "s"
+lto = true

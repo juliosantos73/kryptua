@@ -1,0 +1,43 @@
+name: CI — Core Crypto (Rust/Wasm)
+
+on:
+  push:
+    paths:
+      - 'core-crypto/**'
+      - 'Cargo.toml'
+  pull_request:
+    paths:
+      - 'core-crypto/**'
+      - 'Cargo.toml'
+
+jobs:
+  test:
+    name: Test & Build Wasm
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Run native unit tests
+        run: cargo test -p kryptua-core
+
+      - name: Build Wasm (release)
+        working-directory: core-crypto
+        run: wasm-pack build --target web --release
