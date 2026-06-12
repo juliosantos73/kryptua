@@ -1,17 +1,12 @@
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 
-// Detecta se está rodando dentro do Capacitor (Android/iOS) ou no browser
-const isNative = ref(false)
-const isAndroid = ref(false)
+// window.Capacitor é injectado pelo bridge nativo antes de qualquer JS carregar —
+// detecção síncrona é segura e mais fiável do que onMounted ao nível de módulo.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const cap = typeof window !== 'undefined' ? (window as any).Capacitor : null
 
-onMounted(async () => {
-  // Capacitor injeta window.Capacitor no WebView nativo
-  if (typeof window !== 'undefined' && (window as unknown as { Capacitor?: { isNativePlatform: () => boolean; getPlatform: () => string } }).Capacitor) {
-    const cap = (window as unknown as { Capacitor: { isNativePlatform: () => boolean; getPlatform: () => string } }).Capacitor
-    isNative.value = cap.isNativePlatform()
-    isAndroid.value = cap.getPlatform() === 'android'
-  }
-})
+const isNative = ref<boolean>(cap?.isNativePlatform?.() ?? false)
+const isAndroid = ref<boolean>(cap?.getPlatform?.() === 'android')
 
 export function usePlatform() {
   return { isNative, isAndroid }
