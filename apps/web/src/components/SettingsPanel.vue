@@ -91,6 +91,7 @@ import { ref, computed, onMounted, nextTick } from 'vue'
 import { useDbStore } from '@/stores/db'
 import { usePlatform } from '@/composables/usePlatform'
 import { useBiometrics } from '@/composables/useBiometrics'
+import type { VaultMeta } from '@/types/vault'
 
 const dbStore = useDbStore()
 const { isNative } = usePlatform()
@@ -105,7 +106,7 @@ const showPasswordConfirm = ref(false)
 const confirmPassword = ref('')
 const confirmInputRef = ref<HTMLInputElement | null>(null)
 
-const vault = computed(() => dbStore.loadVault())
+const vault = ref<VaultMeta | null>(null)
 const vaultName = computed(() => vault.value?.name ?? '—')
 const vaultCreatedAt = computed(() => {
   if (!vault.value) return '—'
@@ -115,6 +116,7 @@ const vaultCreatedAt = computed(() => {
 })
 
 onMounted(async () => {
+  vault.value = await dbStore.loadVault()
   if (!isNative.value) return
   bioAvailable.value = await biometrics.checkAvailability()
   if (bioAvailable.value) bioEnabled.value = await biometrics.hasQuickUnlock()
@@ -131,12 +133,14 @@ async function toggleBiometric() {
 }
 
 async function confirmEnable() {
-  if (!confirmPassword.value || !vault.value) return
+  if (!confirmPassword.value) return
+  const v = vault.value ?? await dbStore.loadVault()
+  if (!v) return
   bioLoading.value = true
   bioError.value = ''
   try {
     const wasm = await import('kryptua-core') as unknown as { derive_key: (p: string, s: Uint8Array) => Uint8Array }
-    const key = wasm.derive_key(confirmPassword.value, vault.value.salt)
+    const key = wasm.derive_key(confirmPassword.value, v.salt)
     const ok = await biometrics.setupQuickUnlock(key)
     if (ok) {
       bioEnabled.value = true

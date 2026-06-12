@@ -113,7 +113,7 @@ async function handleSetup() {
     const now = Date.now()
 
     await cryptoStore.unlock(password.value, salt)
-    dbStore.saveVault({ id, name: vaultName.value, salt, createdAt: now, updatedAt: now })
+    await dbStore.saveVault({ id, name: vaultName.value, salt, createdAt: now, updatedAt: now })
 
     // Oferece biometria se estiver no nativo e disponível
     if (isNative.value) {
@@ -137,7 +137,7 @@ async function handleSetup() {
 }
 
 async function enableBiometrics() {
-  if (!pendingKey) { router.push({ name: 'vault' }); return }
+  if (!pendingKey) { await router.push({ name: 'vault' }); return }
   bioSetupLoading.value = true
   try {
     await biometrics.setupQuickUnlock(pendingKey)

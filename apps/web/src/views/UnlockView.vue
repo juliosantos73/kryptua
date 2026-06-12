@@ -91,7 +91,7 @@ let pendingPassword = ''
 
 onMounted(async () => {
   await dbStore.init()
-  if (!dbStore.hasVault()) { router.replace({ name: 'setup' }); return }
+  if (!(await dbStore.hasVault())) { router.replace({ name: 'setup' }); return }
 
   if (isNative.value) {
     const available = await biometrics.checkAvailability()
@@ -128,7 +128,7 @@ async function handleUnlock() {
   errorMsg.value = ''
   loading.value = true
   try {
-    const vault = dbStore.loadVault()
+    const vault = await dbStore.loadVault()
     if (!vault) { router.replace({ name: 'setup' }); return }
 
     await cryptoStore.unlock(password.value, vault.salt)
@@ -155,7 +155,7 @@ async function handleUnlock() {
 async function enableBiometrics() {
   bioSetupLoading.value = true
   try {
-    const vault = dbStore.loadVault()
+    const vault = await dbStore.loadVault()
     if (!vault) return
     const wasm = await import('kryptua-core') as unknown as { derive_key: (p: string, s: Uint8Array) => Uint8Array }
     const key = wasm.derive_key(pendingPassword, vault.salt)

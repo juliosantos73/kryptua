@@ -112,7 +112,7 @@ import ItemList from '@/components/ItemList.vue'
 import ItemDetail from '@/components/ItemDetail.vue'
 import AddItemModal from '@/components/AddItemModal.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
-import type { ItemRow, ItemPayload, ItemType } from '@/types/vault'
+import type { ItemRow, ItemPayload, ItemType, VaultMeta } from '@/types/vault'
 
 const router = useRouter()
 const cryptoStore = useCryptoStore()
@@ -162,23 +162,23 @@ const filteredItems = computed(() =>
     : allItems.value.filter((i) => i.itemType === activeFilter.value),
 )
 
-const vault = ref<ReturnType<typeof dbStore.loadVault>>(null)
+const vault = ref<VaultMeta | null>(null)
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 function schedulePersist() {
   if (persistTimer) clearTimeout(persistTimer)
-  persistTimer = setTimeout(() => {
+  persistTimer = setTimeout(async () => {
     const state = syncStore.getDocState()
-    if (state && vault.value) dbStore.saveYdocState(vault.value.id, state)
+    if (state && vault.value) await dbStore.saveYdocState(vault.value.id, state)
   }, 500)
 }
 
 onMounted(async () => {
   await dbStore.init()
-  vault.value = dbStore.loadVault()
+  vault.value = await dbStore.loadVault()
   if (!vault.value) { router.replace({ name: 'unlock' }); return }
 
-  const savedState = dbStore.loadYdocState(vault.value.id)
+  const savedState = await dbStore.loadYdocState(vault.value.id)
   syncStore.init(vault.value.id, savedState ?? undefined)
 
   const doc = syncStore.ydoc
