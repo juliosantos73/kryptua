@@ -1,37 +1,34 @@
 <template>
   <div class="modal-backdrop" @click.self="$emit('close')">
     <div class="modal">
+
+      <!-- Header with type switcher -->
       <div class="modal-header">
-        <h2>Novo Item</h2>
-        <button class="btn-close" @click="$emit('close')">✕</button>
+        <div class="type-tabs">
+          <button
+            v-for="t in types"
+            :key="t.value"
+            type="button"
+            :class="['tab', { active: form.itemType === t.value }]"
+            @click="form.itemType = t.value"
+          >
+            {{ t.icon }} {{ t.label }}
+          </button>
+        </div>
+        <button class="btn-close" type="button" @click="$emit('close')">✕</button>
       </div>
 
       <form id="modal-form" @submit.prevent="handleSave">
-        <div class="field">
-          <label>Tipo</label>
-          <div class="type-tabs">
-            <button
-              v-for="t in types"
-              :key="t.value"
-              type="button"
-              :class="['tab', { active: form.itemType === t.value }]"
-              @click="form.itemType = t.value"
-            >
-              {{ t.icon }} {{ t.label }}
-            </button>
-          </div>
-        </div>
 
-        <div class="field">
-          <label for="title">Título</label>
-          <input id="title" v-model="form.title" type="text" placeholder="Ex: GitHub" required />
-        </div>
-
-        <!-- Login fields -->
+        <!-- ── LOGIN ─────────────────────────────────── -->
         <template v-if="form.itemType === 'login'">
           <div class="field">
+            <label for="title">Título</label>
+            <input id="title" v-model="form.title" type="text" placeholder="Ex: GitHub" required />
+          </div>
+          <div class="field">
             <label>Usuário / Email</label>
-            <input v-model="login.username" type="text" autocomplete="off" />
+            <input v-model="login.username" type="text" autocomplete="off" placeholder="usuario@exemplo.com" />
           </div>
           <div class="field">
             <label>Senha</label>
@@ -52,54 +49,96 @@
             <label>URL</label>
             <input v-model="login.url" type="url" placeholder="https://" />
           </div>
-          <div class="field">
+          <div class="field field-fill">
             <label>Notas</label>
-            <textarea v-model="login.notes" rows="3" />
+            <textarea v-model="login.notes" class="area-fill" placeholder="Observações opcionais..." />
           </div>
         </template>
 
-        <!-- Card fields -->
+        <!-- ── CARTÃO ─────────────────────────────────── -->
         <template v-else-if="form.itemType === 'card'">
-          <div class="field">
-            <label>Número do Cartão</label>
-            <input
-              v-model="card.number"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-number"
-              maxlength="19"
-              placeholder="0000 0000 0000 0000"
-            />
+          <!-- Card visual preview -->
+          <div class="card-visual">
+            <div class="card-top">
+              <svg class="chip" viewBox="0 0 38 28" fill="none">
+                <rect width="38" height="28" rx="4" fill="#c9a227"/>
+                <rect y="9" width="38" height="10" fill="rgba(0,0,0,0.18)"/>
+                <line x1="12" y1="0" x2="12" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
+                <line x1="26" y1="0" x2="26" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
+                <rect x="12" y="9" width="14" height="10" fill="rgba(255,255,255,0.08)"/>
+              </svg>
+              <svg class="contactless" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5">
+                <path d="M5.6 12a6.4 6.4 0 0 1 12.8 0" stroke-linecap="round"/>
+                <path d="M8.8 12a3.2 3.2 0 0 1 6.4 0" stroke-linecap="round"/>
+                <path d="M12 12h.01" stroke-width="2.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="card-number-display">{{ displayNumber }}</div>
+            <div class="card-bottom">
+              <div class="card-info">
+                <span class="card-info-label">TITULAR</span>
+                <span class="card-info-value">{{ card.holder.toUpperCase() || 'NOME DO TITULAR' }}</span>
+              </div>
+              <div class="card-info card-info-right">
+                <span class="card-info-label">VALIDADE</span>
+                <span class="card-info-value">{{ card.expiry || 'MM/AA' }}</span>
+              </div>
+            </div>
           </div>
-          <div class="field">
-            <label>Titular</label>
-            <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
-          </div>
-          <div class="row-2">
+
+          <!-- Card fields -->
+          <div class="card-fields">
             <div class="field">
-              <label>Validade</label>
-              <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
+              <label for="title">Nome / Apelido do Cartão</label>
+              <input id="title" v-model="form.title" type="text" placeholder="Ex: Nubank, Multibanco..." required />
             </div>
             <div class="field">
-              <label>CVV</label>
-              <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
+              <label>Número</label>
+              <input
+                :value="card.number"
+                type="text"
+                inputmode="numeric"
+                autocomplete="cc-number"
+                maxlength="19"
+                placeholder="0000 0000 0000 0000"
+                class="input-mono"
+                @input="onCardNumberInput"
+              />
             </div>
-          </div>
-          <div class="field">
-            <label>PIN</label>
-            <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
-          </div>
-          <div class="field">
-            <label>Notas</label>
-            <textarea v-model="card.notes" rows="2" />
+            <div class="field">
+              <label>Titular</label>
+              <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
+            </div>
+            <div class="row-3">
+              <div class="field">
+                <label>Validade</label>
+                <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
+              </div>
+              <div class="field">
+                <label>CVV</label>
+                <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
+              </div>
+              <div class="field">
+                <label>PIN</label>
+                <PasswordInput v-model="card.pin" placeholder="••••" autocomplete="off" />
+              </div>
+            </div>
+            <div class="field">
+              <label>Notas</label>
+              <textarea v-model="card.notes" rows="2" placeholder="Observações opcionais..." />
+            </div>
           </div>
         </template>
 
-        <!-- Note fields -->
+        <!-- ── NOTA ─────────────────────────────────── -->
         <template v-else>
           <div class="field">
+            <label for="title">Título</label>
+            <input id="title" v-model="form.title" type="text" placeholder="Ex: Chaves SSH..." required />
+          </div>
+          <div class="field field-fill">
             <label>Conteúdo</label>
-            <textarea v-model="note.content" rows="8" />
+            <textarea v-model="note.content" class="area-fill note-mono" placeholder="Conteúdo da nota segura..." />
           </div>
         </template>
 
@@ -110,6 +149,7 @@
         <button type="button" class="btn-ghost" @click="$emit('close')">Cancelar</button>
         <button type="submit" form="modal-form" class="btn-primary">Salvar</button>
       </div>
+
     </div>
   </div>
 </template>
@@ -139,6 +179,21 @@ const card = reactive({ number: '', holder: '', expiry: '', cvv: '', pin: '', no
 const note = reactive({ content: '' })
 const error = ref('')
 
+const displayNumber = computed(() => {
+  const digits = card.number.replace(/\D/g, '')
+  const groups = []
+  for (let i = 0; i < 4; i++) {
+    const chunk = digits.slice(i * 4, i * 4 + 4)
+    groups.push(chunk.padEnd(4, '•'))
+  }
+  return groups.join('  ')
+})
+
+function onCardNumberInput(e: Event) {
+  const digits = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 16)
+  card.number = digits.replace(/(.{4})(?=.)/g, '$1 ')
+}
+
 function handleSave() {
   error.value = ''
   let payload: ItemPayload
@@ -159,7 +214,7 @@ function handleSave() {
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.65);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -169,8 +224,8 @@ function handleSave() {
 
 .modal {
   width: 100%;
-  max-width: 480px;
-  height: min(90dvh, 640px);
+  max-width: 460px;
+  height: min(92dvh, 680px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -179,32 +234,59 @@ function handleSave() {
   overflow: hidden;
 }
 
+/* ── Header ─────────────────────────── */
 .modal-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 1.1rem 1.25rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
-h2 { font-size: 1rem; font-weight: 600; }
+.type-tabs {
+  display: flex;
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.45rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  transition: all 0.15s;
+}
+
+.tab.active {
+  background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
+}
 
 .btn-close {
+  flex-shrink: 0;
   background: transparent;
   border: none;
   color: var(--color-text-muted);
   font-size: 1rem;
-  padding: 0.25rem 0.5rem;
+  padding: 0.3rem 0.5rem;
+  line-height: 1;
 }
 
+/* ── Form ────────────────────────────── */
 form {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 1rem 1.25rem;
+  padding: 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.85rem;
+  gap: 0.8rem;
 }
 
 .field {
@@ -213,10 +295,16 @@ form {
   gap: 0.3rem;
 }
 
+.field-fill {
+  flex: 1;
+  min-height: 0;
+}
+
 label {
-  font-size: 0.78rem;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--color-text-muted);
+  letter-spacing: 0.02em;
 }
 
 input, textarea {
@@ -229,52 +317,138 @@ input, textarea {
   outline: none;
   transition: border-color 0.15s;
   resize: vertical;
+  font-family: inherit;
 }
 
-input:focus, textarea:focus {
-  border-color: var(--color-accent);
-}
+input:focus, textarea:focus { border-color: var(--color-accent); }
 
-.type-tabs {
-  display: flex;
-  gap: 0.5rem;
-}
-
-.tab {
+.area-fill {
   flex: 1;
-  padding: 0.5rem;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
-  font-size: 0.82rem;
-  transition: all 0.15s;
+  min-height: 100px;
+  resize: none;
 }
 
-.tab.active {
-  background: color-mix(in srgb, var(--color-accent) 20%, transparent);
-  border-color: var(--color-accent);
-  color: var(--color-accent);
+.note-mono { font-family: var(--font-mono); font-size: 0.85rem; }
+.input-mono { font-family: var(--font-mono); letter-spacing: 0.05em; }
+
+/* ── Card preview ────────────────────── */
+.card-visual {
+  border-radius: 14px;
+  background: linear-gradient(135deg, #7c74ff 0%, #5247d0 45%, #1a1d3e 100%);
+  padding: 1.1rem 1.25rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 6px 24px rgba(108, 99, 255, 0.35);
+  flex-shrink: 0;
+}
+
+.card-visual::before {
+  content: '';
+  position: absolute;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.06);
+  top: -80px;
+  right: -50px;
+  pointer-events: none;
+}
+
+.card-visual::after {
+  content: '';
+  position: absolute;
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.04);
+  bottom: -50px;
+  left: 20px;
+  pointer-events: none;
+}
+
+.card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.chip {
+  width: 38px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.contactless {
+  width: 24px;
+  height: 24px;
+  opacity: 0.7;
+}
+
+.card-number-display {
+  font-family: var(--font-mono);
+  font-size: 1.15rem;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin: 0.1rem 0;
+}
+
+.card-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.card-info-right { text-align: right; }
+
+.card-info-label {
+  font-size: 0.58rem;
   font-weight: 600;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
 }
 
-.row-2 {
+.card-info-value {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
+}
+
+/* ── Card fields ─────────────────────── */
+.card-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.row-3 {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.6rem;
 }
 
-.error {
-  color: var(--color-danger);
-  font-size: 0.82rem;
-}
-
+/* ── Footer ──────────────────────────── */
 .modal-footer {
   flex-shrink: 0;
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
-  padding: 0.85rem 1.25rem;
+  padding: 0.8rem 1rem;
   border-top: 1px solid var(--color-border);
 }
 
@@ -301,17 +475,23 @@ input:focus, textarea:focus {
 }
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
-/* Strength bar */
+.error {
+  color: var(--color-danger);
+  font-size: 0.82rem;
+  flex-shrink: 0;
+}
+
+/* ── Strength bar ────────────────────── */
 .strength-bar-wrap {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-top: 0.4rem;
+  margin-top: 0.3rem;
 }
 
 .strength-track {
   flex: 1;
-  height: 4px;
+  height: 3px;
   background: var(--color-border);
   border-radius: 2px;
   overflow: hidden;
@@ -320,11 +500,11 @@ input:focus, textarea:focus {
 .strength-bar {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.3s, background 0.3s;
+  transition: width 0.35s ease, background 0.35s ease;
 }
 
 .strength-label {
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   white-space: nowrap;
   flex-shrink: 0;
