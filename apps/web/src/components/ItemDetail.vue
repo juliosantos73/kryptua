@@ -29,6 +29,7 @@
         <Field label="Titular" :value="payload.data.holder" copyable />
         <Field label="Validade" :value="payload.data.expiry" copyable />
         <Field label="CVV" :value="payload.data.cvv" copyable secret />
+        <Field v-if="payload.data.pin" label="PIN" :value="payload.data.pin" copyable secret />
         <Field v-if="payload.data.notes" label="Notas" :value="payload.data.notes" />
       </template>
 

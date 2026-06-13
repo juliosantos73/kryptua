@@ -63,7 +63,9 @@
             minlength="12"
           />
           <div v-if="password" class="strength-bar-wrap">
-            <div class="strength-bar" :style="{ width: setupStrength.pct + '%', background: setupStrength.color }" />
+            <div class="strength-track">
+              <div class="strength-bar" :style="{ width: setupStrength.pct + '%', background: setupStrength.color }" />
+            </div>
             <span class="strength-label" :style="{ color: setupStrength.color }">{{ setupStrength.label }}</span>
           </div>
         </div>
@@ -420,17 +422,25 @@ input:focus {
   margin-top: 0.4rem;
 }
 
-.strength-bar {
+.strength-track {
+  flex: 1;
   height: 4px;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.strength-bar {
+  height: 100%;
   border-radius: 2px;
   transition: width 0.3s, background 0.3s;
-  flex-shrink: 0;
 }
 
 .strength-label {
   font-size: 0.72rem;
   font-weight: 600;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .error {

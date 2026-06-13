@@ -25,7 +25,7 @@ export interface LoginPayload {
 
 export interface CardPayload {
   type: 'card'
-  data: { number: string; holder: string; expiry: string; cvv: string; notes: string }
+  data: { number: string; holder: string; expiry: string; cvv: string; pin: string; notes: string }
 }
 
 export interface NotePayload {

@@ -11,6 +11,18 @@
       @input="emit('update:modelValue', ($event.target as HTMLInputElement).value)"
     />
     <button
+      v-if="props.generateable"
+      type="button"
+      class="pw-eye pw-gen"
+      title="Gerar senha forte"
+      @click="emit('generate')"
+    >
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+    </button>
+    <button
       type="button"
       class="pw-eye"
       :title="visible ? 'Ocultar' : 'Mostrar password'"
@@ -35,8 +47,8 @@ import { ref } from 'vue'
 
 defineOptions({ inheritAttrs: false })
 
-const props = defineProps<{ modelValue?: string }>()
-const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
+const props = defineProps<{ modelValue?: string; generateable?: boolean }>()
+const emit = defineEmits<{ 'update:modelValue': [value: string]; generate: [] }>()
 
 const inputEl = ref<HTMLInputElement | null>(null)
 const visible = ref(false)
@@ -88,6 +100,10 @@ defineExpose({ focus: () => inputEl.value?.focus() })
 }
 
 .pw-eye:hover { color: var(--color-accent); }
+
+.pw-gen {
+  border-right: 1px solid var(--color-border);
+}
 
 .pw-eye svg {
   width: 16px;

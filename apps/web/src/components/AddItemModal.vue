@@ -6,7 +6,7 @@
         <button class="btn-close" @click="$emit('close')">✕</button>
       </div>
 
-      <form @submit.prevent="handleSave">
+      <form id="modal-form" @submit.prevent="handleSave">
         <div class="field">
           <label>Tipo</label>
           <div class="type-tabs">
@@ -34,13 +34,17 @@
             <input v-model="login.username" type="text" autocomplete="off" />
           </div>
           <div class="field">
-            <div class="label-row">
-              <label>Senha</label>
-              <button type="button" class="btn-generate" @click="login.password = generatePassword()">🎲 Gerar</button>
-            </div>
-            <PasswordInput v-model="login.password" autocomplete="new-password" />
+            <label>Senha</label>
+            <PasswordInput
+              v-model="login.password"
+              :generateable="true"
+              autocomplete="new-password"
+              @generate="login.password = generatePassword()"
+            />
             <div v-if="login.password" class="strength-bar-wrap">
-              <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
+              <div class="strength-track">
+                <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
+              </div>
               <span class="strength-label" :style="{ color: loginStrength.color }">{{ loginStrength.label }}</span>
             </div>
           </div>
@@ -58,21 +62,32 @@
         <template v-else-if="form.itemType === 'card'">
           <div class="field">
             <label>Número do Cartão</label>
-            <input v-model="card.number" type="text" autocomplete="off" maxlength="19" />
+            <input
+              v-model="card.number"
+              type="text"
+              inputmode="numeric"
+              autocomplete="cc-number"
+              maxlength="19"
+              placeholder="0000 0000 0000 0000"
+            />
           </div>
-          <div class="row">
-            <div class="field">
-              <label>Titular</label>
-              <input v-model="card.holder" type="text" autocomplete="off" />
-            </div>
+          <div class="field">
+            <label>Titular</label>
+            <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
+          </div>
+          <div class="row-2">
             <div class="field">
               <label>Validade</label>
-              <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" />
+              <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
             </div>
             <div class="field">
               <label>CVV</label>
-              <input v-model="card.cvv" type="text" maxlength="4" />
+              <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
             </div>
+          </div>
+          <div class="field">
+            <label>PIN</label>
+            <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
           </div>
           <div class="field">
             <label>Notas</label>
@@ -84,17 +99,17 @@
         <template v-else>
           <div class="field">
             <label>Conteúdo</label>
-            <textarea v-model="note.content" rows="6" />
+            <textarea v-model="note.content" rows="8" />
           </div>
         </template>
 
         <p v-if="error" class="error">{{ error }}</p>
-
-        <div class="modal-footer">
-          <button type="button" class="btn-ghost" @click="$emit('close')">Cancelar</button>
-          <button type="submit" class="btn-primary">Salvar</button>
-        </div>
       </form>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" @click="$emit('close')">Cancelar</button>
+        <button type="submit" form="modal-form" class="btn-primary">Salvar</button>
+      </div>
     </div>
   </div>
 </template>
@@ -120,7 +135,7 @@ const types = [
 
 const form = reactive({ itemType: 'login' as ItemType, title: '' })
 const login = reactive({ username: '', password: '', url: '', notes: '' })
-const card = reactive({ number: '', holder: '', expiry: '', cvv: '', notes: '' })
+const card = reactive({ number: '', holder: '', expiry: '', cvv: '', pin: '', notes: '' })
 const note = reactive({ content: '' })
 const error = ref('')
 
@@ -149,25 +164,26 @@ function handleSave() {
   align-items: center;
   justify-content: center;
   z-index: 100;
+  padding: 1rem;
 }
 
 .modal {
   width: 100%;
-  max-width: 520px;
-  max-height: 90vh;
-  overflow-y: auto;
+  max-width: 480px;
+  height: min(90dvh, 640px);
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   display: flex;
   flex-direction: column;
+  overflow: hidden;
 }
 
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 1.25rem 1.5rem;
+  padding: 1.1rem 1.25rem;
   border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
@@ -183,16 +199,18 @@ h2 { font-size: 1rem; font-weight: 600; }
 }
 
 form {
-  padding: 1.25rem 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+  padding: 1rem 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .field {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 label {
@@ -240,9 +258,9 @@ input:focus, textarea:focus {
   font-weight: 600;
 }
 
-.row {
+.row-2 {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 }
 
@@ -252,10 +270,11 @@ input:focus, textarea:focus {
 }
 
 .modal-footer {
+  flex-shrink: 0;
   display: flex;
   gap: 0.75rem;
   justify-content: flex-end;
-  padding-top: 0.5rem;
+  padding: 0.85rem 1.25rem;
   border-top: 1px solid var(--color-border);
 }
 
@@ -282,44 +301,32 @@ input:focus, textarea:focus {
 }
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
-.label-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-.btn-generate {
-  font-size: 0.72rem;
-  padding: 0.15rem 0.5rem;
-  background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  color: var(--color-text-muted);
-  transition: border-color 0.15s, color 0.15s;
-}
-.btn-generate:hover { border-color: var(--color-accent); color: var(--color-accent); }
-
+/* Strength bar */
 .strength-bar-wrap {
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  margin-top: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.strength-track {
+  flex: 1;
   height: 4px;
-  position: relative;
+  background: var(--color-border);
+  border-radius: 2px;
+  overflow: hidden;
 }
 
 .strength-bar {
-  height: 4px;
+  height: 100%;
   border-radius: 2px;
   transition: width 0.3s, background 0.3s;
-  flex-shrink: 0;
 }
 
 .strength-label {
   font-size: 0.72rem;
   font-weight: 600;
   white-space: nowrap;
-  line-height: 1;
-  margin-top: -2px;
+  flex-shrink: 0;
 }
 </style>
