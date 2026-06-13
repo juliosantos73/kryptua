@@ -21,6 +21,7 @@
     "yjs": "^13.6.31"
   },
   "devDependencies": {
+    "@capacitor/app": "^8.1.0",
     "@capacitor/core": "^8.4.0",
     "@capacitor/preferences": "^8.0.1",
     "@types/node": "^25.9.3",
