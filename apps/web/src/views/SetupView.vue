@@ -203,7 +203,8 @@ async function handleImport() {
     // Verifica a password derivando a chave (lança exceção se falhar no Wasm)
     await cryptoStore.unlock(importPassword.value, salt)
     const now = Date.now()
-    await dbStore.saveVault({ id: data.id, name: data.name, salt, createdAt: now, updatedAt: now })
+    const verifyBlob = cryptoStore.encryptItem(JSON.stringify({ v: 'kryptua-v1' }))
+    await dbStore.saveVault({ id: data.id, name: data.name, salt, verifyBlob, createdAt: now, updatedAt: now })
     router.push({ name: 'vault' })
   } catch (e) {
     importError.value = e instanceof Error ? e.message : 'Código inválido ou password incorreta'
@@ -226,7 +227,8 @@ async function handleSetup() {
     const now = Date.now()
 
     await cryptoStore.unlock(password.value, salt)
-    await dbStore.saveVault({ id, name: vaultName.value, salt, createdAt: now, updatedAt: now })
+    const verifyBlob = cryptoStore.encryptItem(JSON.stringify({ v: 'kryptua-v1' }))
+    await dbStore.saveVault({ id, name: vaultName.value, salt, verifyBlob, createdAt: now, updatedAt: now })
 
     // Oferece biometria se estiver no nativo e disponível
     if (isNative.value) {

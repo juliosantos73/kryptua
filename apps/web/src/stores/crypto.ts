@@ -70,5 +70,11 @@ export const useCryptoStore = defineStore('crypto', () => {
     return manager.value.decrypt_item(blob)
   }
 
-  return { isUnlocked, error, unlock, unlockWithKey, lock, encryptItem, decryptItem }
+  // Returns false if the blob was encrypted with a different key (AES-GCM auth tag fails)
+  function tryVerify(blob: Uint8Array): boolean {
+    if (!manager.value) return false
+    try { manager.value.decrypt_item(blob); return true } catch { return false }
+  }
+
+  return { isUnlocked, error, unlock, unlockWithKey, lock, encryptItem, decryptItem, tryVerify }
 })

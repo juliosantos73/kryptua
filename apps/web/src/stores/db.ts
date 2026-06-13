@@ -36,6 +36,7 @@ export const useDbStore = defineStore('db', () => {
       id: vault.id,
       name: vault.name,
       salt: toBase64(vault.salt),
+      verifyBlob: vault.verifyBlob ? toBase64(vault.verifyBlob) : undefined,
       createdAt: vault.createdAt,
       updatedAt: vault.updatedAt,
     }
@@ -50,6 +51,7 @@ export const useDbStore = defineStore('db', () => {
       id: d.id,
       name: d.name,
       salt: fromBase64(d.salt),
+      verifyBlob: d.verifyBlob ? fromBase64(d.verifyBlob) : undefined,
       createdAt: d.createdAt,
       updatedAt: d.updatedAt,
     }

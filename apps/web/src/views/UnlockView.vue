@@ -104,6 +104,12 @@ onMounted(async () => {
 
 async function unlockWithKey(key: Uint8Array) {
   await cryptoStore.unlockWithKey(key)
+  const vault = await dbStore.loadVault()
+  if (vault?.verifyBlob && !cryptoStore.tryVerify(vault.verifyBlob)) {
+    cryptoStore.lock()
+    errorMsg.value = 'Chave biométrica inválida. Use a Master Password.'
+    return
+  }
   router.push({ name: 'vault' })
 }
 
@@ -124,6 +130,19 @@ async function handleUnlock() {
     if (!vault) { router.replace({ name: 'setup' }); return }
 
     await cryptoStore.unlock(password.value, vault.salt)
+
+    // Verify password is correct via the authentication tag of AES-GCM
+    if (vault.verifyBlob) {
+      if (!cryptoStore.tryVerify(vault.verifyBlob)) {
+        cryptoStore.lock()
+        errorMsg.value = 'Senha incorreta.'
+        return
+      }
+    } else {
+      // Existing vault without verifyBlob: generate it now so future unlocks are verified
+      const verifyBlob = cryptoStore.encryptItem(JSON.stringify({ v: 'kryptua-v1' }))
+      await dbStore.saveVault({ ...vault, verifyBlob, updatedAt: Date.now() })
+    }
 
     // Oferece biometria apenas se: nativo, disponível, não configurada e não recusada antes
     if (isNative.value && !hasBiometric.value && !(await biometrics.isDismissed())) {

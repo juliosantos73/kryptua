@@ -4,6 +4,7 @@ export interface VaultMeta {
   id: string
   name: string
   salt: Uint8Array
+  verifyBlob?: Uint8Array  // AES-GCM cipher of a known string — wrong key fails decryption
   createdAt: number
   updatedAt: number
 }
