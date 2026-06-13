@@ -226,7 +226,8 @@ async function handleSave(title: string, type: ItemType, payload: ItemPayload) {
   } catch (e) {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('bloqueado') || msg.includes('locked')) {
-      saveError.value = 'Sessão expirada. Saia e volte a entrar.'
+      // Cofre bloqueado: vai directo ao ecrã de unlock — sem mensagem de erro
+      lock()
     } else {
       saveError.value = 'Não foi possível guardar. Tente novamente.'
     }
