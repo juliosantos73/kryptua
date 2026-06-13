@@ -28,8 +28,9 @@ jobs:
         run: go build -ldflags="-s -w" -o kryptua-relay ./src/
 
       # Requer secrets: VPS_HOST, VPS_USER, VPS_SSH_KEY
+      # e variável de repositório VPS_CONFIGURED=true (Settings > Variables)
       - name: Deploy para VPS ARM
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: vars.VPS_CONFIGURED == 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -40,7 +41,7 @@ jobs:
             systemctl stop kryptua-relay || true
 
       - name: Upload binário
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: vars.VPS_CONFIGURED == 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VPS_HOST }}
@@ -50,7 +51,7 @@ jobs:
           target: /opt/kryptua/
 
       - name: Reiniciar serviço
-        if: ${{ secrets.VPS_HOST != '' }}
+        if: vars.VPS_CONFIGURED == 'true'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
