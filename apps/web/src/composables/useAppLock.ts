@@ -3,8 +3,9 @@ import { useRouter } from 'vue-router'
 import { useCryptoStore } from '@/stores/crypto'
 import { useSyncStore } from '@/stores/sync'
 
-// Tempo em background antes de bloquear automaticamente (ms)
-const LOCK_AFTER_MS = 60_000
+// Tempo em background antes de bloquear automaticamente (ms).
+// Alterar este valor para ajustar a janela de inactividade.
+const LOCK_AFTER_MS = 15_000
 
 export function useAppLock() {
   const cryptoStore = useCryptoStore()
