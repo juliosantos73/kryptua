@@ -86,6 +86,20 @@ export const useSyncStore = defineStore('sync', () => {
     })
   }
 
+  function updateItem(
+    id: string,
+    meta: ItemMeta,
+    blob: Uint8Array,
+  ): void {
+    if (!ydoc.value || !itemMeta.value || !itemBlobs.value) {
+      throw new Error('Sync não inicializado')
+    }
+    ydoc.value.transact(() => {
+      itemMeta.value!.set(id, meta)
+      itemBlobs.value!.set(id, blob)
+    })
+  }
+
   function deleteItem(id: string): void {
     if (!ydoc.value) throw new Error('Sync não inicializado')
     ydoc.value.transact(() => {
@@ -114,6 +128,7 @@ export const useSyncStore = defineStore('sync', () => {
     destroy,
     getDocState,
     addItem,
+    updateItem,
     deleteItem,
     getItems,
   }

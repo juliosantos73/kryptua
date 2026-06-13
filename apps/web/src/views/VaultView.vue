@@ -7,16 +7,6 @@
         <span>🔐</span>
         <span class="sidebar-title">Kryptua</span>
       </div>
-      <nav class="sidebar-nav">
-        <button
-          v-for="f in filters"
-          :key="f.value"
-          :class="['nav-item', { active: activeFilter === f.value && !showSettings }]"
-          @click="activeFilter = f.value; showSettings = false"
-        >
-          <span class="nav-icon">{{ f.icon }}</span>{{ f.label }}
-        </button>
-      </nav>
       <div class="sidebar-footer">
         <div :class="['sync-status', syncStore.status]">
           <span class="sync-dot" />{{ syncLabel }}
@@ -56,23 +46,33 @@
 
       <ItemList
         v-show="!syncLoading"
-        :items="filteredItems"
+        :items="allItems"
         :selected-id="selectedItem?.id"
         @select="onItemSelect"
-        @add="showModal = true"
       />
     </section>
 
-    <!-- ── DETALHE do item ── -->
+    <!-- ── DETALHE / FORMULÁRIO do item ── -->
     <section
       v-show="!isMobileLayout ? !showSettings : mobilePanel === 'detail'"
       class="detail-panel"
     >
-      <!-- Botão voltar mobile -->
-      <button v-if="isMobileLayout && mobilePanel === 'detail'" class="btn-back" @click="mobilePanel = 'list'">
+      <!-- Botão voltar mobile (só no modo detalhe, não no formulário — o form tem cancelar próprio) -->
+      <button v-if="isMobileLayout && mobilePanel === 'detail' && !showForm" class="btn-back" @click="mobilePanel = 'list'">
         ← Voltar
       </button>
-      <ItemDetail :item="selectedItem" @delete="handleDelete" />
+      <AddItemModal
+        v-if="showForm"
+        :editData="editingData ?? undefined"
+        @cancel="cancelForm"
+        @save="handleSave"
+      />
+      <ItemDetail
+        v-else
+        :item="selectedItem"
+        @delete="handleDelete"
+        @edit="handleEdit"
+      />
     </section>
 
     <!-- ── DEFINIÇÕES (desktop: substitui detalhe; mobile: painel próprio) ── -->
@@ -89,28 +89,34 @@
     <!-- ── BOTTOM NAV (mobile) ── -->
     <nav v-if="isMobileLayout" class="bottom-nav">
       <button
-        v-for="f in filters"
-        :key="f.value"
-        :class="['bottom-tab', { active: activeFilter === f.value && mobilePanel !== 'settings' }]"
-        @click="activeFilter = f.value; mobilePanel = 'list'"
+        :class="['bottom-tab', { active: mobilePanel !== 'settings' }]"
+        @click="mobilePanel = 'list'"
       >
-        <span>{{ f.icon }}</span>
-        <span class="tab-label">{{ f.label }}</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        <span class="tab-label">O meu cofre</span>
       </button>
       <button
         :class="['bottom-tab', { active: mobilePanel === 'settings' }]"
         @click="mobilePanel = 'settings'"
       >
-        <span>⚙️</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="tab-label">Definições</span>
       </button>
       <button class="bottom-tab" @click="lock">
-        <span>🔒</span>
+        <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         <span class="tab-label">Sair</span>
       </button>
     </nav>
 
-    <AddItemModal v-if="showModal" @close="showModal = false; saveError = ''" @save="handleSave" />
+    <!-- FAB — float acima do bottom nav -->
+    <button
+      v-show="(!isMobileLayout || mobilePanel === 'list') && !showForm && !showSettings"
+      class="fab"
+      @click="openForm()"
+      aria-label="Novo item"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    </button>
 
     <!-- Erro de save (vault bloqueado, wasm, etc.) -->
     <div v-if="saveError" class="save-error-toast" @click="saveError = ''">
@@ -139,21 +145,14 @@ const syncStore = useSyncStore()
 const { isNative } = usePlatform()
 
 const selectedItem = ref<ItemRow | null>(null)
-const showModal = ref(false)
+const showForm = ref(false)
 const saveError = ref('')
-const activeFilter = ref<'all' | ItemType>('all')
+const editingData = ref<{ id: string; title: string; itemType: ItemType; payload: ItemPayload; createdAt: number } | null>(null)
 const mobilePanel = ref<'list' | 'detail' | 'settings'>('list')
 const showSettings = ref(false) // desktop only
 
 // Mobile: nativo Capacitor OU viewport estreito
 const isMobileLayout = computed(() => isNative.value || window.innerWidth < 768)
-
-const filters = [
-  { value: 'all' as const,         icon: '🗂',  label: 'Todos' },
-  { value: 'login' as const,       icon: '🔑',  label: 'Logins' },
-  { value: 'card' as const,        icon: '💳',  label: 'Cartões' },
-  { value: 'secure_note' as const, icon: '📝',  label: 'Notas' },
-]
 
 const syncLabel = computed(() => ({
   connected:    'Sincronizado',
@@ -174,12 +173,6 @@ const allItems = computed<ItemRow[]>(() => {
     updatedAt: i.updatedAt,
   }))
 })
-
-const filteredItems = computed(() =>
-  activeFilter.value === 'all'
-    ? allItems.value
-    : allItems.value.filter((i) => i.itemType === activeFilter.value),
-)
 
 const vault = ref<VaultMeta | null>(null)
 
@@ -245,34 +238,78 @@ watch(allItems, (items) => {
   }
 })
 
-function onItemSelect(item: ItemRow) {
-  selectedItem.value = item
+function openForm() {
+  editingData.value = null
+  showForm.value = true
   if (isMobileLayout.value) mobilePanel.value = 'detail'
 }
 
-async function handleSave(title: string, type: ItemType, payload: ItemPayload) {
+function cancelForm() {
+  showForm.value = false
+  editingData.value = null
+  saveError.value = ''
+  if (isMobileLayout.value && !selectedItem.value) mobilePanel.value = 'list'
+}
+
+function onItemSelect(item: ItemRow) {
+  selectedItem.value = item
+  showForm.value = false
+  editingData.value = null
+  if (isMobileLayout.value) mobilePanel.value = 'detail'
+}
+
+async function handleSave(
+  id: string | null,
+  title: string,
+  type: ItemType,
+  payload: ItemPayload,
+  createdAt?: number,
+) {
   saveError.value = ''
   if (!vault.value) return
   try {
     const blob = cryptoStore.encryptItem(JSON.stringify(payload))
     const now = Date.now()
-    const id = crypto.randomUUID()
-    syncStore.addItem(id, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
-    // Persiste imediatamente após adicionar (não espera pelo debounce)
+    const itemId = id ?? crypto.randomUUID()
+
+    if (id) {
+      syncStore.updateItem(itemId, { title, itemType: type, createdAt: createdAt ?? now, updatedAt: now }, blob)
+    } else {
+      syncStore.addItem(itemId, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
+    }
+
     await dbStore.saveYdocState(vault.value.id, syncStore.getDocState()!)
-    showModal.value = false
+    showForm.value = false
+    editingData.value = null
     setTimeout(() => {
-      selectedItem.value = allItems.value.find((i) => i.id === id) ?? null
+      selectedItem.value = allItems.value.find((i) => i.id === itemId) ?? null
       if (isMobileLayout.value && selectedItem.value) mobilePanel.value = 'detail'
     }, 0)
   } catch (e) {
     const msg = e instanceof Error ? e.message : ''
     if (msg.includes('bloqueado') || msg.includes('locked')) {
-      // Cofre bloqueado: vai directo ao ecrã de unlock — sem mensagem de erro
       lock()
     } else {
       saveError.value = 'Não foi possível guardar. Tente novamente.'
     }
+  }
+}
+
+function handleEdit(item: ItemRow) {
+  try {
+    const json = cryptoStore.decryptItem(item.encryptedPayload)
+    const payload = JSON.parse(json) as ItemPayload
+    editingData.value = {
+      id: item.id,
+      title: item.title,
+      itemType: item.itemType,
+      payload,
+      createdAt: item.createdAt,
+    }
+    showForm.value = true
+    if (isMobileLayout.value) mobilePanel.value = 'detail'
+  } catch {
+    saveError.value = 'Não foi possível abrir o item para edição.'
   }
 }
 
@@ -325,38 +362,6 @@ function lock() {
 }
 
 .sidebar-title { font-weight: 700; font-size: 1rem; color: var(--color-accent); }
-
-.sidebar-nav {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  padding: 0.75rem 0.5rem;
-  gap: 0.25rem;
-  overflow-y: auto;
-}
-
-.nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  padding: 0.55rem 0.75rem;
-  background: transparent;
-  border: none;
-  border-radius: var(--radius);
-  color: var(--color-text-muted);
-  font-size: 0.85rem;
-  text-align: left;
-  transition: background 0.1s, color 0.1s;
-}
-
-.nav-item:hover { background: var(--color-surface-2); color: var(--color-text); }
-.nav-item.active {
-  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
-  color: var(--color-accent);
-  font-weight: 600;
-}
-
-.nav-icon { font-size: 1rem; }
 
 .sidebar-footer {
   padding: 0.75rem 0.5rem;
@@ -561,9 +566,42 @@ function lock() {
   flex-shrink: 0;
 }
 
+/* ── FAB ─────────────────────────────── */
+.fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.fab:hover {
+  background: var(--color-accent-hover);
+  transform: scale(1.07);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+.fab:active { transform: scale(0.96); }
+
+/* Desktop: FAB alongside the list panel, not over the detail panel */
+.vault-layout:not(.is-mobile) .fab {
+  bottom: 1.5rem;
+  right: calc(100% - 480px + 1.5rem); /* aligned to list panel */
+}
+
 .save-error-toast {
   position: fixed;
-  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  bottom: calc(5.5rem + env(safe-area-inset-bottom, 0px));
   left: 50%;
   transform: translateX(-50%);
   background: var(--color-danger);

@@ -27,5 +27,4 @@ Thumbs.db
 .env
 .env.*
 !.env.example
-apps/mobile/android/
 apps/mobile/node_modules/

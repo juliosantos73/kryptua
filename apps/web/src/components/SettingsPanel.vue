@@ -74,6 +74,15 @@
         <h3 class="section-title">Sincronização</h3>
         <div class="setting-row">
           <div class="setting-info">
+            <span class="setting-label">Sincronizar agora</span>
+            <span class="setting-desc">{{ lastSyncLabel }}</span>
+          </div>
+          <button class="btn-sm" :disabled="syncing" @click="syncNow">
+            {{ syncing ? '...' : 'Sincronizar' }}
+          </button>
+        </div>
+        <div class="setting-row">
+          <div class="setting-info">
             <span class="setting-label">Exportar vault</span>
             <span class="setting-desc">Partilha este vault com outro dispositivo</span>
           </div>
@@ -123,6 +132,52 @@
         </div>
       </section>
 
+      <!-- ── Outros ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Outros</h3>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Limpar área de transferência</span>
+            <span class="setting-desc">Apaga o valor copiado automaticamente</span>
+          </div>
+          <select class="setting-select" :value="settings.clipboardTimeout.value" @change="settings.setClipboardTimeout(($event.target as HTMLSelectElement).value as ClipboardTimeout)">
+            <option value="never">Nunca</option>
+            <option value="10s">10 segundos</option>
+            <option value="30s">30 segundos</option>
+            <option value="1m">1 minuto</option>
+            <option value="2m">2 minutos</option>
+            <option value="5m">5 minutos</option>
+          </select>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Permitir copiar/colar</span>
+            <span class="setting-desc">Mostra botões de cópia nos campos</span>
+          </div>
+          <button
+            :class="['toggle', { on: settings.allowCopyPaste.value }]"
+            @click="settings.setAllowCopyPaste(!settings.allowCopyPaste.value)"
+          >
+            <span class="toggle-knob" />
+          </button>
+        </div>
+
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Permitir captura de ecrã</span>
+            <span class="setting-desc">Desativar impede screenshots e gravação</span>
+          </div>
+          <button
+            :class="['toggle', { on: settings.allowScreenshots.value }]"
+            @click="settings.setAllowScreenshots(!settings.allowScreenshots.value)"
+          >
+            <span class="toggle-knob" />
+          </button>
+        </div>
+      </section>
+
       <!-- ── Versão ── -->
       <section class="settings-section">
         <h3 class="section-title">Aplicação</h3>
@@ -139,11 +194,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useDbStore } from '@/stores/db'
+import { useSyncStore } from '@/stores/sync'
 import { useBiometrics } from '@/composables/useBiometrics'
 import { useThemeStore } from '@/stores/theme'
+import { useSettings } from '@/composables/useSettings'
+import type { ClipboardTimeout } from '@/composables/useSettings'
 import type { ThemePreference } from '@/stores/theme'
 import type { VaultMeta } from '@/types/vault'
 import PasswordInput from './PasswordInput.vue'
@@ -156,7 +214,41 @@ const themes: { value: ThemePreference; label: string }[] = [
 ]
 
 const dbStore = useDbStore()
+const syncStore = useSyncStore()
 const biometrics = useBiometrics()
+const settings = useSettings()
+
+// ── Sincronização ─────────────────────────────
+const syncing = ref(false)
+const lastSyncAt = ref<number | null>(null)
+
+const lastSyncLabel = computed(() => {
+  if (!lastSyncAt.value) return 'Nunca sincronizado'
+  return `Última: ${new Date(lastSyncAt.value).toLocaleString('pt-PT')}`
+})
+
+let statusUnwatch: (() => void) | null = null
+
+onMounted(() => {
+  statusUnwatch = watch(
+    () => syncStore.status,
+    (s) => { if (s === 'connected') lastSyncAt.value = Date.now() },
+    { immediate: true }
+  )
+})
+
+onUnmounted(() => { statusUnwatch?.() })
+
+async function syncNow() {
+  syncing.value = true
+  const v = vault.value ?? await dbStore.loadVault()
+  if (!v) { syncing.value = false; return }
+  const saved = await dbStore.loadYdocState(v.id)
+  syncStore.destroy()
+  syncStore.init(v.id, saved ?? undefined)
+  syncing.value = false
+  lastSyncAt.value = Date.now()
+}
 
 const bioAvailable = ref(false)
 const bioEnabled = ref(false)
@@ -345,6 +437,21 @@ async function disableBiometric() {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Select */
+.setting-select {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text);
+  font-size: 0.8rem;
+  outline: none;
+  cursor: pointer;
+}
+
+.setting-select:focus { border-color: var(--color-accent); }
 
 /* Toggle switch */
 .toggle {

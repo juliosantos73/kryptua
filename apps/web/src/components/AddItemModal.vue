@@ -1,170 +1,190 @@
 <template>
-  <div class="modal-backdrop" @click.self="$emit('close')">
-    <div class="modal">
+  <div class="item-panel">
 
-      <!-- Header with type switcher -->
-      <div class="modal-header">
-        <div class="type-tabs">
-          <button
-            v-for="t in types"
-            :key="t.value"
-            type="button"
-            :class="['tab', { active: form.itemType === t.value }]"
-            @click="form.itemType = t.value"
-          >
-            {{ t.icon }} {{ t.label }}
-          </button>
-        </div>
-        <button class="btn-close" type="button" @click="$emit('close')">✕</button>
+    <!-- Header with type switcher -->
+    <div class="panel-header">
+      <div class="type-tabs">
+        <button
+          v-for="t in types"
+          :key="t.value"
+          type="button"
+          :class="['tab', { active: form.itemType === t.value }]"
+          :disabled="isEditing"
+          @click="form.itemType = t.value"
+        >
+          {{ t.icon }} {{ t.label }}
+        </button>
       </div>
+      <button class="btn-close" type="button" @click="$emit('cancel')">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
 
-      <form id="modal-form" @submit.prevent="handleSave">
+    <form id="modal-form" @submit.prevent="handleSave">
 
-        <!-- ── LOGIN ─────────────────────────────────── -->
-        <template v-if="form.itemType === 'login'">
+      <!-- ── LOGIN ─────────────────────────────────── -->
+      <template v-if="form.itemType === 'login'">
+        <div class="field">
+          <label for="title">Título</label>
+          <input id="title" v-model="form.title" type="text" placeholder="Ex: GitHub" required />
+        </div>
+        <div class="field">
+          <label>Usuário / Email</label>
+          <input v-model="login.username" type="text" autocomplete="off" placeholder="usuario@exemplo.com" />
+        </div>
+        <div class="field">
+          <label>Senha</label>
+          <PasswordInput
+            v-model="login.password"
+            :generateable="true"
+            autocomplete="new-password"
+            @generate="login.password = generatePassword()"
+          />
+          <div v-if="login.password" class="strength-bar-wrap">
+            <div class="strength-track">
+              <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
+            </div>
+            <span class="strength-label" :style="{ color: loginStrength.color }">{{ loginStrength.label }}</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>URL</label>
+          <input v-model="login.url" type="url" placeholder="https://" />
+        </div>
+        <div class="field field-fill">
+          <label>Notas</label>
+          <textarea v-model="login.notes" class="area-fill" placeholder="Observações opcionais..." />
+        </div>
+      </template>
+
+      <!-- ── CARTÃO ─────────────────────────────────── -->
+      <template v-else-if="form.itemType === 'card'">
+        <!-- Card visual preview -->
+        <div class="card-visual">
+          <div class="card-top">
+            <svg class="chip" viewBox="0 0 38 28" fill="none">
+              <rect width="38" height="28" rx="4" fill="#c9a227"/>
+              <rect y="9" width="38" height="10" fill="rgba(0,0,0,0.18)"/>
+              <line x1="12" y1="0" x2="12" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
+              <line x1="26" y1="0" x2="26" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
+              <rect x="12" y="9" width="14" height="10" fill="rgba(255,255,255,0.08)"/>
+            </svg>
+            <svg class="contactless" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5">
+              <path d="M5.6 12a6.4 6.4 0 0 1 12.8 0" stroke-linecap="round"/>
+              <path d="M8.8 12a3.2 3.2 0 0 1 6.4 0" stroke-linecap="round"/>
+              <path d="M12 12h.01" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="card-number-display">{{ displayNumber }}</div>
+          <div class="card-bottom">
+            <div class="card-info">
+              <span class="card-info-label">TITULAR</span>
+              <span class="card-info-value">{{ card.holder.toUpperCase() || 'NOME DO TITULAR' }}</span>
+            </div>
+            <div class="card-info card-info-right">
+              <span class="card-info-label">VALIDADE</span>
+              <span class="card-info-value">{{ card.expiry || 'MM/AA' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card fields -->
+        <div class="card-fields">
           <div class="field">
-            <label for="title">Título</label>
-            <input id="title" v-model="form.title" type="text" placeholder="Ex: GitHub" required />
+            <label for="title">Nome / Apelido do Cartão</label>
+            <input id="title" v-model="form.title" type="text" placeholder="Ex: Nubank, Multibanco..." required />
           </div>
           <div class="field">
-            <label>Usuário / Email</label>
-            <input v-model="login.username" type="text" autocomplete="off" placeholder="usuario@exemplo.com" />
-          </div>
-          <div class="field">
-            <label>Senha</label>
-            <PasswordInput
-              v-model="login.password"
-              :generateable="true"
-              autocomplete="new-password"
-              @generate="login.password = generatePassword()"
+            <label>Número</label>
+            <input
+              :value="card.number"
+              type="text"
+              inputmode="numeric"
+              autocomplete="cc-number"
+              maxlength="19"
+              placeholder="0000 0000 0000 0000"
+              class="input-mono"
+              @input="onCardNumberInput"
             />
-            <div v-if="login.password" class="strength-bar-wrap">
-              <div class="strength-track">
-                <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
-              </div>
-              <span class="strength-label" :style="{ color: loginStrength.color }">{{ loginStrength.label }}</span>
-            </div>
           </div>
           <div class="field">
-            <label>URL</label>
-            <input v-model="login.url" type="url" placeholder="https://" />
+            <label>Titular</label>
+            <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
           </div>
-          <div class="field field-fill">
-            <label>Notas</label>
-            <textarea v-model="login.notes" class="area-fill" placeholder="Observações opcionais..." />
-          </div>
-        </template>
-
-        <!-- ── CARTÃO ─────────────────────────────────── -->
-        <template v-else-if="form.itemType === 'card'">
-          <!-- Card visual preview -->
-          <div class="card-visual">
-            <div class="card-top">
-              <svg class="chip" viewBox="0 0 38 28" fill="none">
-                <rect width="38" height="28" rx="4" fill="#c9a227"/>
-                <rect y="9" width="38" height="10" fill="rgba(0,0,0,0.18)"/>
-                <line x1="12" y1="0" x2="12" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
-                <line x1="26" y1="0" x2="26" y2="28" stroke="rgba(0,0,0,0.15)" stroke-width="1.5"/>
-                <rect x="12" y="9" width="14" height="10" fill="rgba(255,255,255,0.08)"/>
-              </svg>
-              <svg class="contactless" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.5">
-                <path d="M5.6 12a6.4 6.4 0 0 1 12.8 0" stroke-linecap="round"/>
-                <path d="M8.8 12a3.2 3.2 0 0 1 6.4 0" stroke-linecap="round"/>
-                <path d="M12 12h.01" stroke-width="2.5" stroke-linecap="round"/>
-              </svg>
-            </div>
-            <div class="card-number-display">{{ displayNumber }}</div>
-            <div class="card-bottom">
-              <div class="card-info">
-                <span class="card-info-label">TITULAR</span>
-                <span class="card-info-value">{{ card.holder.toUpperCase() || 'NOME DO TITULAR' }}</span>
-              </div>
-              <div class="card-info card-info-right">
-                <span class="card-info-label">VALIDADE</span>
-                <span class="card-info-value">{{ card.expiry || 'MM/AA' }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Card fields -->
-          <div class="card-fields">
+          <div class="row-2">
             <div class="field">
-              <label for="title">Nome / Apelido do Cartão</label>
-              <input id="title" v-model="form.title" type="text" placeholder="Ex: Nubank, Multibanco..." required />
-            </div>
-            <div class="field">
-              <label>Número</label>
+              <label>Validade</label>
               <input
-                :value="card.number"
+                :value="card.expiry"
                 type="text"
                 inputmode="numeric"
-                autocomplete="cc-number"
-                maxlength="19"
-                placeholder="0000 0000 0000 0000"
-                class="input-mono"
-                @input="onCardNumberInput"
+                placeholder="MM/AA"
+                maxlength="5"
+                autocomplete="cc-exp"
+                @input="onExpiryInput"
               />
             </div>
             <div class="field">
-              <label>Titular</label>
-              <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
-            </div>
-            <div class="row-2">
-              <div class="field">
-                <label>Validade</label>
-                <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
-              </div>
-              <div class="field">
-                <label>CVV</label>
-                <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
-              </div>
-            </div>
-            <div class="field">
-              <label>PIN</label>
-              <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
-            </div>
-            <div class="field">
-              <label>Notas</label>
-              <textarea v-model="card.notes" rows="2" placeholder="Observações opcionais..." />
+              <label>CVV</label>
+              <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
             </div>
           </div>
-        </template>
-
-        <!-- ── NOTA ─────────────────────────────────── -->
-        <template v-else>
           <div class="field">
-            <label for="title">Título</label>
-            <input id="title" v-model="form.title" type="text" placeholder="Ex: Chaves SSH..." required />
+            <label>PIN</label>
+            <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
           </div>
-          <div class="field field-fill">
-            <label>Conteúdo</label>
-            <textarea v-model="note.content" class="area-fill note-mono" placeholder="Conteúdo da nota segura..." />
+          <div class="field">
+            <label>Notas</label>
+            <textarea v-model="card.notes" rows="2" placeholder="Observações opcionais..." />
           </div>
-        </template>
+        </div>
+      </template>
 
-        <p v-if="error" class="error">{{ error }}</p>
-      </form>
+      <!-- ── NOTA ─────────────────────────────────── -->
+      <template v-else>
+        <div class="field">
+          <label for="title">Título</label>
+          <input id="title" v-model="form.title" type="text" placeholder="Ex: Chaves SSH..." required />
+        </div>
+        <div class="field field-fill">
+          <label>Conteúdo</label>
+          <textarea v-model="note.content" class="area-fill note-mono" placeholder="Conteúdo da nota segura..." />
+        </div>
+      </template>
 
-      <div class="modal-footer">
-        <button type="button" class="btn-ghost" @click="$emit('close')">Cancelar</button>
-        <button type="submit" form="modal-form" class="btn-primary">Salvar</button>
-      </div>
+      <p v-if="error" class="error">{{ error }}</p>
+    </form>
 
+    <div class="panel-footer">
+      <button type="button" class="btn-ghost" @click="$emit('cancel')">Cancelar</button>
+      <button type="submit" form="modal-form" class="btn-primary">{{ isEditing ? 'Atualizar' : 'Salvar' }}</button>
     </div>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import type { ItemPayload, ItemType } from '@/types/vault'
 import PasswordInput from './PasswordInput.vue'
 import { generatePassword, passwordStrength } from '@/composables/usePasswordGenerator'
 
+interface EditData {
+  id: string
+  title: string
+  itemType: ItemType
+  payload: ItemPayload
+  createdAt: number
+}
+
+const props = defineProps<{ editData?: EditData }>()
+const isEditing = computed(() => !!props.editData)
+
 const loginStrength = computed(() => passwordStrength(login.password))
 
 const emit = defineEmits<{
-  close: []
-  save: [title: string, type: ItemType, payload: ItemPayload]
+  cancel: []
+  save: [id: string | null, title: string, type: ItemType, payload: ItemPayload, createdAt?: number]
 }>()
 
 const types = [
@@ -178,6 +198,22 @@ const login = reactive({ username: '', password: '', url: '', notes: '' })
 const card = reactive({ number: '', holder: '', expiry: '', cvv: '', pin: '', notes: '' })
 const note = reactive({ content: '' })
 const error = ref('')
+
+onMounted(() => {
+  if (!props.editData) return
+  const { title, itemType, payload } = props.editData
+  form.title = title
+  form.itemType = itemType
+  if (payload.type === 'login') {
+    Object.assign(login, payload.data)
+  } else if (payload.type === 'card') {
+    const d = payload.data as { number: string; holder: string; expiry: string; cvv: string; pin?: string; notes: string }
+    card.number = d.number; card.holder = d.holder; card.expiry = d.expiry
+    card.cvv = d.cvv; card.pin = d.pin ?? ''; card.notes = d.notes
+  } else {
+    note.content = payload.data.content
+  }
+})
 
 const displayNumber = computed(() => {
   const digits = card.number.replace(/\D/g, '')
@@ -194,6 +230,14 @@ function onCardNumberInput(e: Event) {
   card.number = digits.replace(/(.{4})(?=.)/g, '$1 ')
 }
 
+function onExpiryInput(e: Event) {
+  const input = e.target as HTMLInputElement
+  const digits = input.value.replace(/\D/g, '').slice(0, 4)
+  const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
+  card.expiry = formatted
+  input.value = formatted
+}
+
 function handleSave() {
   error.value = ''
   let payload: ItemPayload
@@ -206,36 +250,22 @@ function handleSave() {
     payload = { type: 'secure_note', data: { content: note.content } }
   }
 
-  emit('save', form.title, form.itemType, payload)
+  emit('save', props.editData?.id ?? null, form.title, form.itemType, payload, props.editData?.createdAt)
 }
 </script>
 
 <style scoped>
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.65);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 100;
-  padding: 1rem;
-}
-
-.modal {
-  width: 100%;
-  max-width: 460px;
-  height: min(92dvh, 680px);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+/* ── Panel root ─────────────────────── */
+.item-panel {
+  height: 100%;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background: var(--color-surface);
 }
 
 /* ── Header ─────────────────────────── */
-.modal-header {
+.panel-header {
   display: flex;
   align-items: center;
   gap: 0.75rem;
@@ -268,15 +298,24 @@ function handleSave() {
   font-weight: 600;
 }
 
+.tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
 .btn-close {
   flex-shrink: 0;
   background: transparent;
   border: none;
   color: var(--color-text-muted);
-  font-size: 1rem;
-  padding: 0.3rem 0.5rem;
+  padding: 0.3rem;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  transition: color 0.15s;
 }
+
+.btn-close:hover { color: var(--color-text); }
 
 /* ── Form ────────────────────────────── */
 form {
@@ -378,17 +417,8 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   justify-content: space-between;
 }
 
-.chip {
-  width: 38px;
-  height: 28px;
-  flex-shrink: 0;
-}
-
-.contactless {
-  width: 24px;
-  height: 24px;
-  opacity: 0.7;
-}
+.chip { width: 38px; height: 28px; flex-shrink: 0; }
+.contactless { width: 24px; height: 24px; opacity: 0.7; }
 
 .card-number-display {
   font-family: var(--font-mono);
@@ -405,12 +435,7 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   align-items: flex-end;
 }
 
-.card-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-}
-
+.card-info { display: flex; flex-direction: column; gap: 0.1rem; }
 .card-info-right { text-align: right; }
 
 .card-info-label {
@@ -444,16 +469,11 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   gap: 0.75rem;
 }
 
-.row-2 > * {
-  min-width: 0;
-}
-
-.row-2 :deep(.pw-wrap) {
-  min-width: 0;
-}
+.row-2 > * { min-width: 0; }
+.row-2 :deep(.pw-wrap) { min-width: 0; }
 
 /* ── Footer ──────────────────────────── */
-.modal-footer {
+.panel-footer {
   flex-shrink: 0;
   display: flex;
   gap: 0.75rem;

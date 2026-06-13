@@ -132,16 +132,11 @@ async function handleUnlock() {
     await cryptoStore.unlock(password.value, vault.salt)
 
     // Verify password is correct via the authentication tag of AES-GCM
-    if (vault.verifyBlob) {
-      if (!cryptoStore.tryVerify(vault.verifyBlob)) {
-        cryptoStore.lock()
-        errorMsg.value = 'Senha incorreta.'
-        return
-      }
-    } else {
-      // Existing vault without verifyBlob: generate it now so future unlocks are verified
-      const verifyBlob = cryptoStore.encryptItem(JSON.stringify({ v: 'kryptua-v1' }))
-      await dbStore.saveVault({ ...vault, verifyBlob, updatedAt: Date.now() })
+    // (only for vaults that have a verifyBlob — old vaults without one proceed as before)
+    if (vault.verifyBlob && !cryptoStore.tryVerify(vault.verifyBlob)) {
+      cryptoStore.lock()
+      errorMsg.value = 'Senha incorreta.'
+      return
     }
 
     // Oferece biometria apenas se: nativo, disponível, não configurada e não recusada antes

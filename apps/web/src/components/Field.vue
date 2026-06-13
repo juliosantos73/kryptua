@@ -2,7 +2,7 @@
   <div class="field">
     <div class="field-header">
       <span class="field-label">{{ label }}</span>
-      <button v-if="copyable" class="btn-copy" @click="copy">
+      <button v-if="copyable && settings.allowCopyPaste.value" class="btn-copy" @click="copy">
         {{ copied ? '✓ Copiado' : 'Copiar' }}
       </button>
     </div>
@@ -20,6 +20,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useSettings } from '@/composables/useSettings'
 
 const props = defineProps<{
   label: string
@@ -29,12 +30,14 @@ const props = defineProps<{
   multiline?: boolean
 }>()
 
+const settings = useSettings()
 const hidden = ref(true)
 const copied = ref(false)
 
 async function copy() {
   await navigator.clipboard.writeText(props.value)
   copied.value = true
+  settings.scheduleClipboardClear()
   setTimeout(() => { copied.value = false }, 2000)
 }
 </script>
