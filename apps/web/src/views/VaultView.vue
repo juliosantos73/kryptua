@@ -97,7 +97,12 @@
       </button>
     </nav>
 
-    <AddItemModal v-if="showModal" @close="showModal = false" @save="handleSave" />
+    <AddItemModal v-if="showModal" @close="showModal = false; saveError = ''" @save="handleSave" />
+
+    <!-- Erro de save (vault bloqueado, wasm, etc.) -->
+    <div v-if="saveError" class="save-error-toast" @click="saveError = ''">
+      ⚠️ {{ saveError }}
+    </div>
   </div>
 </template>
 
@@ -122,6 +127,7 @@ const { isNative } = usePlatform()
 
 const selectedItem = ref<ItemRow | null>(null)
 const showModal = ref(false)
+const saveError = ref('')
 const activeFilter = ref<'all' | ItemType>('all')
 const mobilePanel = ref<'list' | 'detail' | 'settings'>('list')
 const showSettings = ref(false) // desktop only
@@ -202,17 +208,24 @@ function onItemSelect(item: ItemRow) {
   if (isMobileLayout.value) mobilePanel.value = 'detail'
 }
 
-function handleSave(title: string, type: ItemType, payload: ItemPayload) {
+async function handleSave(title: string, type: ItemType, payload: ItemPayload) {
+  saveError.value = ''
   if (!vault.value) return
-  const blob = cryptoStore.encryptItem(JSON.stringify(payload))
-  const now = Date.now()
-  const id = crypto.randomUUID()
-  syncStore.addItem(id, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
-  setTimeout(() => {
-    selectedItem.value = allItems.value.find((i) => i.id === id) ?? null
-    if (isMobileLayout.value && selectedItem.value) mobilePanel.value = 'detail'
-  }, 0)
-  showModal.value = false
+  try {
+    const blob = cryptoStore.encryptItem(JSON.stringify(payload))
+    const now = Date.now()
+    const id = crypto.randomUUID()
+    syncStore.addItem(id, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
+    // Persiste imediatamente após adicionar (não espera pelo debounce)
+    await dbStore.saveYdocState(vault.value.id, syncStore.getDocState()!)
+    showModal.value = false
+    setTimeout(() => {
+      selectedItem.value = allItems.value.find((i) => i.id === id) ?? null
+      if (isMobileLayout.value && selectedItem.value) mobilePanel.value = 'detail'
+    }, 0)
+  } catch (e) {
+    saveError.value = e instanceof Error ? e.message : 'Erro ao salvar item'
+  }
 }
 
 function handleDelete(id: string) {
@@ -453,5 +466,23 @@ function lock() {
   font-size: 0.65rem;
   font-weight: 500;
   line-height: 1;
+}
+
+.save-error-toast {
+  position: fixed;
+  bottom: calc(4rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-danger);
+  color: #fff;
+  padding: 0.65rem 1.25rem;
+  border-radius: var(--radius);
+  font-size: 0.85rem;
+  font-weight: 500;
+  z-index: 200;
+  max-width: 90vw;
+  text-align: center;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
 }
 </style>

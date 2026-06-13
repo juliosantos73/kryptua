@@ -41,6 +41,19 @@ export const useCryptoStore = defineStore('crypto', () => {
     }
   }
 
+  // Usado pelo unlock biométrico: recebe a chave já derivada (sem re-executar Argon2id)
+  async function unlockWithKey(key: Uint8Array): Promise<void> {
+    error.value = null
+    try {
+      const wasm = await loadWasm()
+      manager.value = new wasm.VaultManager(key)
+      isUnlocked.value = true
+    } catch (e) {
+      error.value = e instanceof Error ? e.message : 'Erro ao desbloquear'
+      throw e
+    }
+  }
+
   function lock(): void {
     manager.value = null
     isUnlocked.value = false
@@ -57,5 +70,5 @@ export const useCryptoStore = defineStore('crypto', () => {
     return manager.value.decrypt_item(blob)
   }
 
-  return { isUnlocked, error, unlock, lock, encryptItem, decryptItem }
+  return { isUnlocked, error, unlock, unlockWithKey, lock, encryptItem, decryptItem }
 })

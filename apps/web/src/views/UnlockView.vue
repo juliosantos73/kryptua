@@ -104,14 +104,7 @@ onMounted(async () => {
 })
 
 async function unlockWithKey(key: Uint8Array) {
-  const { VaultManager } = await import('kryptua-core') as unknown as {
-    VaultManager: new (key: Uint8Array) => { encrypt_item: (j: string) => Uint8Array; decrypt_item: (b: Uint8Array) => string }
-  }
-  const manager = new VaultManager(key)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(cryptoStore as any).manager = manager
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  ;(cryptoStore as any).isUnlocked = true
+  await cryptoStore.unlockWithKey(key)
   router.push({ name: 'vault' })
 }
 
