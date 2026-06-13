@@ -1,18 +1,18 @@
 <template>
   <div class="item-panel">
 
-    <!-- Header with type switcher -->
+    <!-- Header: type selector -->
     <div class="panel-header">
       <div class="type-tabs">
         <button
-          v-for="t in types"
-          :key="t.value"
+          v-for="s in schemas"
+          :key="s.id"
           type="button"
-          :class="['tab', { active: form.itemType === t.value }]"
+          :class="['tab', { active: form.typeId === s.id }]"
           :disabled="isEditing"
-          @click="form.itemType = t.value"
+          @click="selectType(s.id)"
         >
-          {{ t.icon }} {{ t.label }}
+          {{ s.icon }} {{ s.name }}
         </button>
       </div>
       <button class="btn-close" type="button" @click="$emit('cancel')">
@@ -22,44 +22,14 @@
 
     <form id="modal-form" @submit.prevent="handleSave">
 
-      <!-- ── LOGIN ─────────────────────────────────── -->
-      <template v-if="form.itemType === 'login'">
-        <div class="field">
-          <label for="title">Título</label>
-          <input id="title" v-model="form.title" type="text" placeholder="Ex: GitHub" required />
-        </div>
-        <div class="field">
-          <label>Usuário / Email</label>
-          <input v-model="login.username" type="text" autocomplete="off" placeholder="usuario@exemplo.com" />
-        </div>
-        <div class="field">
-          <label>Senha</label>
-          <PasswordInput
-            v-model="login.password"
-            :generateable="true"
-            autocomplete="new-password"
-            @generate="login.password = generatePassword()"
-          />
-          <div v-if="login.password" class="strength-bar-wrap">
-            <div class="strength-track">
-              <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
-            </div>
-            <span class="strength-label" :style="{ color: loginStrength.color }">{{ loginStrength.label }}</span>
-          </div>
-        </div>
-        <div class="field">
-          <label>URL</label>
-          <input v-model="login.url" type="url" placeholder="https://" />
-        </div>
-        <div class="field field-fill">
-          <label>Notas</label>
-          <textarea v-model="login.notes" class="area-fill" placeholder="Observações opcionais..." />
-        </div>
-      </template>
+      <!-- Title always first -->
+      <div class="field">
+        <label for="item-title">Título</label>
+        <input id="item-title" v-model="form.title" type="text" :placeholder="currentSchema?.name ?? 'Título'" required />
+      </div>
 
-      <!-- ── CARTÃO ─────────────────────────────────── -->
-      <template v-else-if="form.itemType === 'card'">
-        <!-- Card visual preview -->
+      <!-- ── CARTÃO: visual preview + special layout ── -->
+      <template v-if="form.typeId === 'card'">
         <div class="card-visual">
           <div class="card-top">
             <svg class="chip" viewBox="0 0 38 28" fill="none">
@@ -75,33 +45,25 @@
               <path d="M12 12h.01" stroke-width="2.5" stroke-linecap="round"/>
             </svg>
           </div>
-          <div class="card-number-display">{{ displayNumber }}</div>
+          <div class="card-number-display">{{ displayCardNumber }}</div>
           <div class="card-bottom">
             <div class="card-info">
               <span class="card-info-label">TITULAR</span>
-              <span class="card-info-value">{{ card.holder.toUpperCase() || 'NOME DO TITULAR' }}</span>
+              <span class="card-info-value">{{ (form.data.holder || 'NOME DO TITULAR').toUpperCase() }}</span>
             </div>
             <div class="card-info card-info-right">
               <span class="card-info-label">VALIDADE</span>
-              <span class="card-info-value">{{ card.expiry || 'MM/AA' }}</span>
+              <span class="card-info-value">{{ form.data.expiry || 'MM/AA' }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Card fields -->
         <div class="card-fields">
-          <div class="field">
-            <label for="title">Nome / Apelido do Cartão</label>
-            <input id="title" v-model="form.title" type="text" placeholder="Ex: Nubank, Multibanco..." required />
-          </div>
           <div class="field">
             <label>Número</label>
             <input
-              :value="card.number"
-              type="text"
-              inputmode="numeric"
-              autocomplete="cc-number"
-              maxlength="19"
+              :value="form.data.number"
+              type="text" inputmode="numeric" autocomplete="cc-number" maxlength="19"
               placeholder="0000 0000 0000 0000"
               class="input-mono"
               @input="onCardNumberInput"
@@ -109,47 +71,68 @@
           </div>
           <div class="field">
             <label>Titular</label>
-            <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
+            <input v-model="form.data.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
           </div>
           <div class="row-2">
             <div class="field">
               <label>Validade</label>
-              <input
-                :value="card.expiry"
-                type="text"
-                inputmode="numeric"
-                placeholder="MM/AA"
-                maxlength="5"
-                autocomplete="cc-exp"
-                @input="onExpiryInput"
-              />
+              <input :value="form.data.expiry" type="text" inputmode="numeric" placeholder="MM/AA" maxlength="5" @input="onExpiryInput" />
             </div>
             <div class="field">
               <label>CVV</label>
-              <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
+              <PasswordInput v-model="form.data.cvv" placeholder="•••" autocomplete="cc-csc" />
             </div>
           </div>
           <div class="field">
             <label>PIN</label>
-            <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
+            <PasswordInput v-model="form.data.pin" placeholder="PIN do cartão" autocomplete="off" />
           </div>
           <div class="field">
             <label>Notas</label>
-            <textarea v-model="card.notes" rows="2" placeholder="Observações opcionais..." />
+            <textarea v-model="form.data.notes" rows="2" placeholder="Observações opcionais..." />
           </div>
         </div>
       </template>
 
-      <!-- ── NOTA ─────────────────────────────────── -->
+      <!-- ── TODOS OS OUTROS TIPOS: formulário dinâmico ── -->
       <template v-else>
-        <div class="field">
-          <label for="title">Título</label>
-          <input id="title" v-model="form.title" type="text" placeholder="Ex: Chaves SSH..." required />
-        </div>
-        <div class="field field-fill">
-          <label>Conteúdo</label>
-          <textarea v-model="note.content" class="area-fill note-mono" placeholder="Conteúdo da nota segura..." />
-        </div>
+        <template v-for="field in currentSchema?.fields ?? []" :key="field.key">
+          <div :class="['field', { 'field-fill': isLastTextarea(field) }]">
+            <label>{{ field.label }}</label>
+
+            <PasswordInput
+              v-if="field.fieldType === 'password' || field.fieldType === 'pin'"
+              v-model="form.data[field.key]"
+              :placeholder="field.placeholder"
+              :generateable="field.fieldType === 'password'"
+              autocomplete="new-password"
+              @generate="field.fieldType === 'password' && (form.data[field.key] = generatePassword())"
+            />
+
+            <textarea
+              v-else-if="field.fieldType === 'textarea'"
+              v-model="form.data[field.key]"
+              :placeholder="field.placeholder"
+              :class="{ 'area-fill': isLastTextarea(field), 'note-mono': currentSchema?.id === 'secure_note' }"
+            />
+
+            <input
+              v-else
+              v-model="form.data[field.key]"
+              :type="inputType(field.fieldType)"
+              :placeholder="field.placeholder"
+              autocomplete="off"
+            />
+
+            <!-- Strength bar right after password field -->
+            <div v-if="field.fieldType === 'password' && form.data[field.key]" class="strength-bar-wrap">
+              <div class="strength-track">
+                <div class="strength-bar" :style="{ width: strength.pct + '%', background: strength.color }" />
+              </div>
+              <span class="strength-label" :style="{ color: strength.color }">{{ strength.label }}</span>
+            </div>
+          </div>
+        </template>
       </template>
 
       <p v-if="error" class="error">{{ error }}</p>
@@ -165,58 +148,71 @@
 
 <script setup lang="ts">
 import { reactive, ref, computed, onMounted } from 'vue'
-import type { ItemPayload, ItemType } from '@/types/vault'
+import type { ItemPayload } from '@/types/vault'
+import type { TypeSchema, FieldDef, FieldType } from '@/types/schema'
 import PasswordInput from './PasswordInput.vue'
 import { generatePassword, passwordStrength } from '@/composables/usePasswordGenerator'
 
 interface EditData {
   id: string
   title: string
-  itemType: ItemType
+  itemType: string
   payload: ItemPayload
   createdAt: number
 }
 
-const props = defineProps<{ editData?: EditData }>()
-const isEditing = computed(() => !!props.editData)
+const props = defineProps<{
+  schemas: TypeSchema[]
+  editData?: EditData
+}>()
 
-const loginStrength = computed(() => passwordStrength(login.password))
+const isEditing = computed(() => !!props.editData)
 
 const emit = defineEmits<{
   cancel: []
-  save: [id: string | null, title: string, type: ItemType, payload: ItemPayload, createdAt?: number]
+  save: [id: string | null, title: string, typeId: string, payload: ItemPayload, createdAt?: number]
 }>()
 
-const types = [
-  { value: 'login' as ItemType, label: 'Login', icon: '🔑' },
-  { value: 'card' as ItemType, label: 'Cartão', icon: '💳' },
-  { value: 'secure_note' as ItemType, label: 'Nota', icon: '📝' },
-]
-
-const form = reactive({ itemType: 'login' as ItemType, title: '' })
-const login = reactive({ username: '', password: '', url: '', notes: '' })
-const card = reactive({ number: '', holder: '', expiry: '', cvv: '', pin: '', notes: '' })
-const note = reactive({ content: '' })
-const error = ref('')
-
-onMounted(() => {
-  if (!props.editData) return
-  const { title, itemType, payload } = props.editData
-  form.title = title
-  form.itemType = itemType
-  if (payload.type === 'login') {
-    Object.assign(login, payload.data)
-  } else if (payload.type === 'card') {
-    const d = payload.data as { number: string; holder: string; expiry: string; cvv: string; pin?: string; notes: string }
-    card.number = d.number; card.holder = d.holder; card.expiry = d.expiry
-    card.cvv = d.cvv; card.pin = d.pin ?? ''; card.notes = d.notes
-  } else {
-    note.content = payload.data.content
-  }
+const form = reactive({
+  typeId: props.schemas[0]?.id ?? 'login',
+  title: '',
+  data: {} as Record<string, string>,
 })
 
-const displayNumber = computed(() => {
-  const digits = card.number.replace(/\D/g, '')
+const error = ref('')
+
+function selectType(id: string) {
+  form.typeId = id
+  // Reset data with empty strings for each field key
+  const schema = props.schemas.find(s => s.id === id)
+  const fresh: Record<string, string> = {}
+  for (const f of schema?.fields ?? []) fresh[f.key] = ''
+  form.data = fresh
+}
+
+const currentSchema = computed(() => props.schemas.find(s => s.id === form.typeId))
+
+function isLastTextarea(field: FieldDef): boolean {
+  const fields = currentSchema.value?.fields ?? []
+  const last = [...fields].reverse().find(f => f.fieldType === 'textarea')
+  return last?.key === field.key
+}
+
+function inputType(ft: FieldType): string {
+  if (ft === 'url') return 'url'
+  if (ft === 'email') return 'email'
+  if (ft === 'number') return 'number'
+  return 'text'
+}
+
+const passwordField = computed(() =>
+  currentSchema.value?.fields.find(f => f.fieldType === 'password'),
+)
+const strength = computed(() => passwordStrength(form.data[passwordField.value?.key ?? ''] ?? ''))
+
+// Card visual helpers
+const displayCardNumber = computed(() => {
+  const digits = (form.data.number ?? '').replace(/\D/g, '')
   const groups = []
   for (let i = 0; i < 4; i++) {
     const chunk = digits.slice(i * 4, i * 4 + 4)
@@ -227,35 +223,39 @@ const displayNumber = computed(() => {
 
 function onCardNumberInput(e: Event) {
   const digits = (e.target as HTMLInputElement).value.replace(/\D/g, '').slice(0, 16)
-  card.number = digits.replace(/(.{4})(?=.)/g, '$1 ')
+  form.data.number = digits.replace(/(.{4})(?=.)/g, '$1 ')
 }
 
 function onExpiryInput(e: Event) {
   const input = e.target as HTMLInputElement
   const digits = input.value.replace(/\D/g, '').slice(0, 4)
   const formatted = digits.length > 2 ? `${digits.slice(0, 2)}/${digits.slice(2)}` : digits
-  card.expiry = formatted
+  form.data.expiry = formatted
   input.value = formatted
 }
 
+onMounted(() => {
+  if (props.editData) {
+    form.typeId = props.editData.itemType
+    form.title = props.editData.title
+    form.data = { ...props.editData.payload.data }
+  } else {
+    // Init empty data for the default selected type
+    const schema = props.schemas.find(s => s.id === form.typeId)
+    const fresh: Record<string, string> = {}
+    for (const f of schema?.fields ?? []) fresh[f.key] = ''
+    form.data = fresh
+  }
+})
+
 function handleSave() {
   error.value = ''
-  let payload: ItemPayload
-
-  if (form.itemType === 'login') {
-    payload = { type: 'login', data: { ...login } }
-  } else if (form.itemType === 'card') {
-    payload = { type: 'card', data: { ...card } }
-  } else {
-    payload = { type: 'secure_note', data: { content: note.content } }
-  }
-
-  emit('save', props.editData?.id ?? null, form.title, form.itemType, payload, props.editData?.createdAt)
+  const payload: ItemPayload = { type: form.typeId, data: { ...form.data } }
+  emit('save', props.editData?.id ?? null, form.title, form.typeId, payload, props.editData?.createdAt)
 }
 </script>
 
 <style scoped>
-/* ── Panel root ─────────────────────── */
 .item-panel {
   height: 100%;
   display: flex;
@@ -264,7 +264,6 @@ function handleSave() {
   background: var(--color-surface);
 }
 
-/* ── Header ─────────────────────────── */
 .panel-header {
   display: flex;
   align-items: center;
@@ -278,16 +277,20 @@ function handleSave() {
   display: flex;
   flex: 1;
   gap: 0.4rem;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.type-tabs::-webkit-scrollbar { display: none; }
 
 .tab {
-  flex: 1;
-  padding: 0.45rem 0.5rem;
+  flex-shrink: 0;
+  padding: 0.45rem 0.65rem;
   background: transparent;
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
   color: var(--color-text-muted);
   font-size: 0.8rem;
+  white-space: nowrap;
   transition: all 0.15s;
 }
 
@@ -298,10 +301,7 @@ function handleSave() {
   font-weight: 600;
 }
 
-.tab:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
+.tab:disabled { opacity: 0.5; cursor: default; }
 
 .btn-close {
   flex-shrink: 0;
@@ -314,10 +314,8 @@ function handleSave() {
   align-items: center;
   transition: color 0.15s;
 }
-
 .btn-close:hover { color: var(--color-text); }
 
-/* ── Form ────────────────────────────── */
 form {
   flex: 1;
   min-height: 0;
@@ -334,10 +332,7 @@ form {
   gap: 0.3rem;
 }
 
-.field-fill {
-  flex: 1;
-  min-height: 0;
-}
+.field-fill { flex: 1; min-height: 0; }
 
 label {
   font-size: 0.75rem;
@@ -363,16 +358,11 @@ input, textarea {
 
 input:focus, textarea:focus { border-color: var(--color-accent); }
 
-.area-fill {
-  flex: 1;
-  min-height: 100px;
-  resize: none;
-}
-
+.area-fill { flex: 1; min-height: 100px; resize: none; }
 .note-mono { font-family: var(--font-mono); font-size: 0.85rem; }
 .input-mono { font-family: var(--font-mono); letter-spacing: 0.05em; }
 
-/* ── Card preview ────────────────────── */
+/* Card preview */
 .card-visual {
   border-radius: 14px;
   background: linear-gradient(135deg, #7c74ff 0%, #5247d0 45%, #1a1d3e 100%);
@@ -386,93 +376,47 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   box-shadow: 0 6px 24px rgba(108, 99, 255, 0.35);
   flex-shrink: 0;
 }
-
 .card-visual::before {
   content: '';
   position: absolute;
-  width: 200px;
-  height: 200px;
+  width: 200px; height: 200px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.06);
-  top: -80px;
-  right: -50px;
+  background: rgba(255,255,255,0.06);
+  top: -80px; right: -50px;
   pointer-events: none;
 }
-
 .card-visual::after {
   content: '';
   position: absolute;
-  width: 130px;
-  height: 130px;
+  width: 130px; height: 130px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.04);
-  bottom: -50px;
-  left: 20px;
+  background: rgba(255,255,255,0.04);
+  bottom: -50px; left: 20px;
   pointer-events: none;
 }
-
-.card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-}
-
+.card-top { display: flex; align-items: flex-start; justify-content: space-between; }
 .chip { width: 38px; height: 28px; flex-shrink: 0; }
 .contactless { width: 24px; height: 24px; opacity: 0.7; }
-
 .card-number-display {
   font-family: var(--font-mono);
   font-size: 1.15rem;
   letter-spacing: 0.12em;
-  color: rgba(255, 255, 255, 0.95);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  color: rgba(255,255,255,0.95);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.3);
   margin: 0.1rem 0;
 }
-
-.card-bottom {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-}
-
+.card-bottom { display: flex; justify-content: space-between; align-items: flex-end; }
 .card-info { display: flex; flex-direction: column; gap: 0.1rem; }
 .card-info-right { text-align: right; }
+.card-info-label { font-size: 0.58rem; font-weight: 600; letter-spacing: 0.1em; color: rgba(255,255,255,0.55); text-transform: uppercase; }
+.card-info-value { font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.9); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px; }
 
-.card-info-label {
-  font-size: 0.58rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.55);
-  text-transform: uppercase;
-}
+.card-fields { display: flex; flex-direction: column; gap: 0.8rem; }
 
-.card-info-value {
-  font-size: 0.78rem;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.9);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 160px;
-}
-
-/* ── Card fields ─────────────────────── */
-.card-fields {
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.row-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.75rem;
-}
-
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 .row-2 > * { min-width: 0; }
 .row-2 :deep(.pw-wrap) { min-width: 0; }
 
-/* ── Footer ──────────────────────────── */
 .panel-footer {
   flex-shrink: 0;
   display: flex;
@@ -505,38 +449,10 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
 }
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
 
-.error {
-  color: var(--color-danger);
-  font-size: 0.82rem;
-  flex-shrink: 0;
-}
+.error { color: var(--color-danger); font-size: 0.82rem; flex-shrink: 0; }
 
-/* ── Strength bar ────────────────────── */
-.strength-bar-wrap {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-top: 0.3rem;
-}
-
-.strength-track {
-  flex: 1;
-  height: 3px;
-  background: var(--color-border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.strength-bar {
-  height: 100%;
-  border-radius: 2px;
-  transition: width 0.35s ease, background 0.35s ease;
-}
-
-.strength-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  white-space: nowrap;
-  flex-shrink: 0;
-}
+.strength-bar-wrap { display: flex; align-items: center; gap: 0.6rem; margin-top: 0.3rem; }
+.strength-track { flex: 1; height: 3px; background: var(--color-border); border-radius: 2px; overflow: hidden; }
+.strength-bar { height: 100%; border-radius: 2px; transition: width 0.35s ease, background 0.35s ease; }
+.strength-label { font-size: 0.7rem; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
 </style>

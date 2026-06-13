@@ -178,6 +178,12 @@
         </div>
       </section>
 
+      <!-- ── Tipos ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Tipos de item</h3>
+        <TypeSchemaManager :item-counts="itemCounts" />
+      </section>
+
       <!-- ── Versão ── -->
       <section class="settings-section">
         <h3 class="section-title">Aplicação</h3>
@@ -205,6 +211,8 @@ import type { ClipboardTimeout } from '@/composables/useSettings'
 import type { ThemePreference } from '@/stores/theme'
 import type { VaultMeta } from '@/types/vault'
 import PasswordInput from './PasswordInput.vue'
+import TypeSchemaManager from './TypeSchemaManager.vue'
+import { useSyncStore as useSyncForCounts } from '@/stores/sync'
 
 const themeStore = useThemeStore()
 const themes: { value: ThemePreference; label: string }[] = [
@@ -215,8 +223,18 @@ const themes: { value: ThemePreference; label: string }[] = [
 
 const dbStore = useDbStore()
 const syncStore = useSyncStore()
+const syncForCounts = useSyncForCounts()
 const biometrics = useBiometrics()
 const settings = useSettings()
+
+const itemCounts = computed(() => {
+  void syncForCounts.version
+  const counts: Record<string, number> = {}
+  for (const item of syncForCounts.getItems()) {
+    counts[item.itemType] = (counts[item.itemType] ?? 0) + 1
+  }
+  return counts
+})
 
 // ── Sincronização ─────────────────────────────
 const syncing = ref(false)

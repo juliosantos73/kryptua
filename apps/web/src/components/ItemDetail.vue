@@ -6,7 +6,7 @@
   <div v-else class="detail">
     <div class="detail-header">
       <div class="detail-title">
-        <span class="type-icon">{{ typeIcon }}</span>
+        <span class="type-icon">{{ schemaIcon }}</span>
         <h2>{{ item.title }}</h2>
       </div>
       <div v-if="confirmDelete" class="confirm-strip">
@@ -15,6 +15,14 @@
         <button class="btn-confirm-no" @click="confirmDelete = false">Não</button>
       </div>
       <div v-else class="detail-actions">
+        <!-- Favorite / bookmark -->
+        <button
+          :class="['btn-fav', { on: item.isFavorite }]"
+          :title="item.isFavorite ? 'Remover dos preferidos' : 'Adicionar aos preferidos'"
+          @click="$emit('favorite', item.id)"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" :fill="item.isFavorite ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </button>
         <button class="btn-edit" @click="$emit('edit', item)" title="Editar">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
         </button>
@@ -27,27 +35,26 @@
     <div v-if="loadError" class="error">{{ loadError }}</div>
 
     <div v-else-if="payload" class="fields">
-      <!-- Login -->
-      <template v-if="payload.type === 'login'">
-        <Field label="Usuário" :value="payload.data.username" copyable />
-        <Field label="Senha" :value="payload.data.password" copyable secret />
-        <Field label="URL" :value="payload.data.url" copyable />
-        <Field v-if="payload.data.notes" label="Notas" :value="payload.data.notes" />
+      <template v-if="currentSchema">
+        <Field
+          v-for="field in currentSchema.fields"
+          :key="field.key"
+          :label="field.label"
+          :value="payload.data[field.key] ?? ''"
+          :copyable="field.copyable"
+          :secret="field.masked"
+          :multiline="field.fieldType === 'textarea'"
+        />
       </template>
-
-      <!-- Cartão -->
-      <template v-else-if="payload.type === 'card'">
-        <Field label="Número" :value="payload.data.number" copyable secret />
-        <Field label="Titular" :value="payload.data.holder" copyable />
-        <Field label="Validade" :value="payload.data.expiry" copyable />
-        <Field label="CVV" :value="payload.data.cvv" copyable secret />
-        <Field v-if="payload.data.pin" label="PIN" :value="payload.data.pin" copyable secret />
-        <Field v-if="payload.data.notes" label="Notas" :value="payload.data.notes" />
-      </template>
-
-      <!-- Nota -->
-      <template v-else-if="payload.type === 'secure_note'">
-        <Field label="Conteúdo" :value="payload.data.content" multiline />
+      <!-- Fallback: unknown type, display all data keys -->
+      <template v-else>
+        <Field
+          v-for="(value, key) in payload.data"
+          :key="key"
+          :label="String(key)"
+          :value="value"
+          copyable
+        />
       </template>
     </div>
 
@@ -60,11 +67,20 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import type { ItemRow, ItemPayload } from '@/types/vault'
+import type { TypeSchema } from '@/types/schema'
 import { useCryptoStore } from '@/stores/crypto'
 import Field from './Field.vue'
 
-const props = defineProps<{ item: ItemRow | null }>()
-defineEmits<{ delete: [id: string]; edit: [item: ItemRow] }>()
+const props = defineProps<{
+  item: ItemRow | null
+  schemas: TypeSchema[]
+}>()
+
+defineEmits<{
+  delete: [id: string]
+  edit: [item: ItemRow]
+  favorite: [id: string]
+}>()
 
 const cryptoStore = useCryptoStore()
 const payload = ref<ItemPayload | null>(null)
@@ -82,21 +98,21 @@ watch(
       const json = cryptoStore.decryptItem(item.encryptedPayload)
       payload.value = JSON.parse(json) as ItemPayload
     } catch {
-      loadError.value = 'Não foi possível decriptar este item. Verifique se a Master Password é a mesma do dispositivo de origem.'
+      loadError.value = 'Não foi possível decriptar este item.'
     }
   },
   { immediate: true },
 )
 
-const typeIcon = computed(() => {
-  const icons: Record<string, string> = { login: '🔑', card: '💳', secure_note: '📝' }
-  return props.item ? icons[props.item.itemType] ?? '•' : ''
-})
+const currentSchema = computed(() =>
+  props.item ? props.schemas.find(s => s.id === props.item!.itemType) : undefined,
+)
 
-const formattedDate = computed(() => {
-  if (!props.item) return ''
-  return new Date(props.item.updatedAt).toLocaleString('pt-BR')
-})
+const schemaIcon = computed(() => currentSchema.value?.icon ?? '•')
+
+const formattedDate = computed(() =>
+  props.item ? new Date(props.item.updatedAt).toLocaleString('pt-BR') : '',
+)
 </script>
 
 <style scoped>
@@ -133,10 +149,7 @@ const formattedDate = computed(() => {
   flex: 1;
 }
 
-.type-icon {
-  font-size: 1.5rem;
-  flex-shrink: 0;
-}
+.type-icon { font-size: 1.5rem; flex-shrink: 0; }
 
 h2 {
   font-size: 1.1rem;
@@ -166,7 +179,6 @@ h2 {
   font-weight: 600;
   transition: opacity 0.15s;
 }
-
 .btn-confirm-yes:hover { opacity: 0.85; }
 
 .btn-confirm-no {
@@ -178,7 +190,6 @@ h2 {
   font-size: 0.8rem;
   transition: border-color 0.15s, color 0.15s;
 }
-
 .btn-confirm-no:hover { border-color: var(--color-text-muted); color: var(--color-text); }
 
 .detail-actions {
@@ -189,7 +200,7 @@ h2 {
   overflow: hidden;
 }
 
-.btn-edit, .btn-delete {
+.btn-fav, .btn-edit, .btn-delete {
   padding: 0.4rem 0.65rem;
   background: transparent;
   border: none;
@@ -198,11 +209,15 @@ h2 {
   align-items: center;
   justify-content: center;
   transition: background 0.15s, color 0.15s;
-}
-
-.btn-edit {
   border-right: 1px solid var(--color-border);
 }
+.btn-delete { border-right: none; }
+
+.btn-fav:hover, .btn-fav.on {
+  background: color-mix(in srgb, #f6ad55 12%, transparent);
+  color: #c07a2a;
+}
+.btn-fav.on { color: #d97706; }
 
 .btn-edit:hover {
   background: color-mix(in srgb, var(--color-accent) 12%, transparent);
@@ -214,11 +229,7 @@ h2 {
   color: var(--color-danger);
 }
 
-.error {
-  padding: 1rem 1.5rem;
-  color: var(--color-danger);
-  font-size: 0.85rem;
-}
+.error { padding: 1rem 1.5rem; color: var(--color-danger); font-size: 0.85rem; }
 
 .fields {
   flex: 1;
@@ -229,13 +240,7 @@ h2 {
   gap: 1rem;
 }
 
-.detail-footer {
-  padding: 0.75rem 1.5rem;
-  border-top: 1px solid var(--color-border);
-}
+.detail-footer { padding: 0.75rem 1.5rem; border-top: 1px solid var(--color-border); }
 
-.ts {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-}
+.ts { font-size: 0.75rem; color: var(--color-text-muted); }
 </style>

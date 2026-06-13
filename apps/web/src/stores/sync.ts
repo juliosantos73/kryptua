@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 import * as Y from 'yjs'
 import { WebsocketProvider } from 'y-websocket'
+import type { TypeSchema } from '@/types/schema'
+import { DEFAULT_SCHEMAS } from '@/types/schema'
 
 const RELAY_URL = (import.meta.env['VITE_RELAY_URL'] as string | undefined) ?? 'ws://localhost:8080/sync'
 
@@ -9,19 +11,19 @@ export type SyncStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
 
 export interface ItemMeta {
   title: string
-  itemType: 'login' | 'card' | 'secure_note'
+  itemType: string
+  isFavorite: boolean
   createdAt: number
   updatedAt: number
 }
 
 export const useSyncStore = defineStore('sync', () => {
   const status = ref<SyncStatus>('disconnected')
-  // shallowRef: o Vue não precisa tornar o Y.Doc internamente reativo
   const ydoc = shallowRef<Y.Doc | null>(null)
   const itemMeta = shallowRef<Y.Map<ItemMeta> | null>(null)
   const itemBlobs = shallowRef<Y.Map<Uint8Array> | null>(null)
+  const typeSchemas = shallowRef<Y.Map<TypeSchema> | null>(null)
 
-  // Versão incremental usada para forçar reatividade em computed que dependem do Yjs
   const version = ref(0)
 
   let provider: WebsocketProvider | null = null
@@ -33,20 +35,21 @@ export const useSyncStore = defineStore('sync', () => {
     ydoc.value = doc
     itemMeta.value = doc.getMap<ItemMeta>('meta')
     itemBlobs.value = doc.getMap<Uint8Array>('blobs')
+    typeSchemas.value = doc.getMap<TypeSchema>('typeSchemas')
 
-    // Restaura estado local persistido
     if (savedState?.length) {
-      try {
-        Y.applyUpdate(doc, savedState)
-      } catch {
-        // Estado corrompido — ignorar e aguardar sync do relay
-      }
+      try { Y.applyUpdate(doc, savedState) } catch {}
     }
 
-    // Incrementa versão a cada mudança para triggers reactivos no Vue
+    // Seed default schemas on fresh vault
+    if (typeSchemas.value.size === 0) {
+      doc.transact(() => {
+        for (const s of DEFAULT_SCHEMAS) typeSchemas.value!.set(s.id, s)
+      })
+    }
+
     doc.on('update', () => { version.value++ })
 
-    // Conecta ao relay server
     status.value = 'connecting'
     provider = new WebsocketProvider(RELAY_URL, vaultId, doc, { connect: true })
 
@@ -64,6 +67,7 @@ export const useSyncStore = defineStore('sync', () => {
     ydoc.value = null
     itemMeta.value = null
     itemBlobs.value = null
+    typeSchemas.value = null
     status.value = 'disconnected'
   }
 
@@ -72,31 +76,28 @@ export const useSyncStore = defineStore('sync', () => {
     return Y.encodeStateAsUpdate(ydoc.value)
   }
 
-  function addItem(
-    id: string,
-    meta: ItemMeta,
-    blob: Uint8Array,
-  ): void {
-    if (!ydoc.value || !itemMeta.value || !itemBlobs.value) {
-      throw new Error('Sync não inicializado')
-    }
+  function addItem(id: string, meta: ItemMeta, blob: Uint8Array): void {
+    if (!ydoc.value || !itemMeta.value || !itemBlobs.value) throw new Error('Sync não inicializado')
     ydoc.value.transact(() => {
       itemMeta.value!.set(id, meta)
       itemBlobs.value!.set(id, blob)
     })
   }
 
-  function updateItem(
-    id: string,
-    meta: ItemMeta,
-    blob: Uint8Array,
-  ): void {
-    if (!ydoc.value || !itemMeta.value || !itemBlobs.value) {
-      throw new Error('Sync não inicializado')
-    }
+  function updateItem(id: string, meta: ItemMeta, blob: Uint8Array): void {
+    if (!ydoc.value || !itemMeta.value || !itemBlobs.value) throw new Error('Sync não inicializado')
     ydoc.value.transact(() => {
       itemMeta.value!.set(id, meta)
       itemBlobs.value!.set(id, blob)
+    })
+  }
+
+  function toggleFavorite(id: string): void {
+    if (!ydoc.value || !itemMeta.value) return
+    const meta = itemMeta.value.get(id)
+    if (!meta) return
+    ydoc.value.transact(() => {
+      itemMeta.value!.set(id, { ...meta, isFavorite: !meta.isFavorite })
     })
   }
 
@@ -118,18 +119,27 @@ export const useSyncStore = defineStore('sync', () => {
     return result.sort((a, b) => b.updatedAt - a.updatedAt)
   }
 
+  // ── Type schema CRUD ──────────────────────────────────────────────────────
+
+  function getSchemas(): TypeSchema[] {
+    if (!typeSchemas.value) return [...DEFAULT_SCHEMAS]
+    return [...typeSchemas.value.values()].sort((a, b) => a.order - b.order)
+  }
+
+  function saveSchema(schema: TypeSchema): void {
+    if (!typeSchemas.value) return
+    typeSchemas.value.set(schema.id, schema)
+  }
+
+  function deleteSchema(id: string): void {
+    if (!typeSchemas.value) return
+    typeSchemas.value.delete(id)
+  }
+
   return {
-    status,
-    version,
-    ydoc,
-    itemMeta,
-    itemBlobs,
-    init,
-    destroy,
-    getDocState,
-    addItem,
-    updateItem,
-    deleteItem,
-    getItems,
+    status, version, ydoc, itemMeta, itemBlobs, typeSchemas,
+    init, destroy, getDocState,
+    addItem, updateItem, toggleFavorite, deleteItem, getItems,
+    getSchemas, saveSchema, deleteSchema,
   }
 })

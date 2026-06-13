@@ -47,6 +47,7 @@
       <ItemList
         v-show="!syncLoading"
         :items="allItems"
+        :schemas="schemas"
         :selected-id="selectedItem?.id"
         @select="onItemSelect"
       />
@@ -63,6 +64,7 @@
       </button>
       <AddItemModal
         v-if="showForm"
+        :schemas="schemas"
         :editData="editingData ?? undefined"
         @cancel="cancelForm"
         @save="handleSave"
@@ -70,8 +72,10 @@
       <ItemDetail
         v-else
         :item="selectedItem"
+        :schemas="schemas"
         @delete="handleDelete"
         @edit="handleEdit"
+        @favorite="handleFavoriteToggle"
       />
     </section>
 
@@ -136,7 +140,8 @@ import ItemList from '@/components/ItemList.vue'
 import ItemDetail from '@/components/ItemDetail.vue'
 import AddItemModal from '@/components/AddItemModal.vue'
 import SettingsPanel from '@/components/SettingsPanel.vue'
-import type { ItemRow, ItemPayload, ItemType, VaultMeta } from '@/types/vault'
+import type { ItemRow, ItemPayload, VaultMeta } from '@/types/vault'
+import { useTypeSchemas } from '@/composables/useTypeSchemas'
 
 const router = useRouter()
 const cryptoStore = useCryptoStore()
@@ -144,10 +149,12 @@ const dbStore = useDbStore()
 const syncStore = useSyncStore()
 const { isNative } = usePlatform()
 
+const { schemas } = useTypeSchemas()
+
 const selectedItem = ref<ItemRow | null>(null)
 const showForm = ref(false)
 const saveError = ref('')
-const editingData = ref<{ id: string; title: string; itemType: ItemType; payload: ItemPayload; createdAt: number } | null>(null)
+const editingData = ref<{ id: string; title: string; itemType: string; payload: ItemPayload; createdAt: number } | null>(null)
 const mobilePanel = ref<'list' | 'detail' | 'settings'>('list')
 const showSettings = ref(false) // desktop only
 
@@ -168,6 +175,7 @@ const allItems = computed<ItemRow[]>(() => {
     vaultId: vault.value?.id ?? '',
     itemType: i.itemType,
     title: i.title,
+    isFavorite: i.isFavorite ?? false,
     encryptedPayload: i.blob,
     createdAt: i.createdAt,
     updatedAt: i.updatedAt,
@@ -258,10 +266,19 @@ function onItemSelect(item: ItemRow) {
   if (isMobileLayout.value) mobilePanel.value = 'detail'
 }
 
+async function handleFavoriteToggle(id: string) {
+  syncStore.toggleFavorite(id)
+  const state = syncStore.getDocState()
+  if (state && vault.value) await dbStore.saveYdocState(vault.value.id, state)
+  // Refresh selectedItem reactivity
+  const updated = allItems.value.find(i => i.id === id)
+  if (updated && selectedItem.value?.id === id) selectedItem.value = updated
+}
+
 async function handleSave(
   id: string | null,
   title: string,
-  type: ItemType,
+  type: string,
   payload: ItemPayload,
   createdAt?: number,
 ) {
@@ -272,10 +289,11 @@ async function handleSave(
     const now = Date.now()
     const itemId = id ?? crypto.randomUUID()
 
+    const existing = id ? syncStore.itemMeta?.get(itemId) : undefined
     if (id) {
-      syncStore.updateItem(itemId, { title, itemType: type, createdAt: createdAt ?? now, updatedAt: now }, blob)
+      syncStore.updateItem(itemId, { title, itemType: type, isFavorite: existing?.isFavorite ?? false, createdAt: createdAt ?? now, updatedAt: now }, blob)
     } else {
-      syncStore.addItem(itemId, { title, itemType: type, createdAt: now, updatedAt: now }, blob)
+      syncStore.addItem(itemId, { title, itemType: type, isFavorite: false, createdAt: now, updatedAt: now }, blob)
     }
 
     await dbStore.saveYdocState(vault.value.id, syncStore.getDocState()!)
@@ -302,7 +320,7 @@ function handleEdit(item: ItemRow) {
     editingData.value = {
       id: item.id,
       title: item.title,
-      itemType: item.itemType,
+      itemType: item.itemType,  // now a plain string (schema ID)
       payload,
       createdAt: item.createdAt,
     }

@@ -9,7 +9,18 @@
       />
     </div>
 
-    <!-- TIPOS section (Bitwarden-style) -->
+    <!-- PREFERIDAS (pinned above TIPOS) -->
+    <div
+      v-if="!search"
+      :class="['fav-row', { active: activeFilter === 'favorites' }]"
+      @click="toggleFilter('favorites')"
+    >
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" :fill="activeFilter === 'favorites' ? 'currentColor' : 'none'" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      <span class="fav-label">Preferidas</span>
+      <span class="fav-count">{{ favCount }}</span>
+    </div>
+
+    <!-- TIPOS section -->
     <div v-if="!search" class="section">
       <div class="section-header" @click="typesOpen = !typesOpen">
         <span class="section-title">TIPOS</span>
@@ -17,14 +28,14 @@
       </div>
       <ul v-if="typesOpen" class="type-rows">
         <li
-          v-for="t in typeRows"
-          :key="t.value"
-          :class="['type-row', { active: activeFilter === t.value }]"
-          @click="toggleFilter(t.value)"
+          v-for="schema in schemas"
+          :key="schema.id"
+          :class="['type-row', { active: activeFilter === schema.id }]"
+          @click="toggleFilter(schema.id)"
         >
-          <span class="type-row-icon">{{ t.icon }}</span>
-          <span class="type-row-label">{{ t.label }}</span>
-          <span class="type-row-count">{{ t.count }}</span>
+          <span class="type-row-icon">{{ schema.icon }}</span>
+          <span class="type-row-label">{{ schema.name }}</span>
+          <span class="type-row-count">{{ items.filter(i => i.itemType === schema.id).length }}</span>
         </li>
       </ul>
     </div>
@@ -33,7 +44,7 @@
     <div class="section section-items">
       <div class="section-header items-header">
         <span class="section-title">
-          {{ activeFilter === 'all' ? 'TODOS' : typeRows.find(t => t.value === activeFilter)?.label.toUpperCase() }}
+          {{ sectionTitle }}
           <span class="section-count">({{ filtered.length }})</span>
         </span>
         <button v-if="activeFilter !== 'all'" class="btn-clear-filter" @click="activeFilter = 'all'" title="Limpar filtro">✕</button>
@@ -41,6 +52,7 @@
 
       <div v-if="!filtered.length" class="empty">
         <p v-if="search">Sem resultados para "{{ search }}"</p>
+        <p v-else-if="activeFilter === 'favorites'">Nenhum item marcado como preferido</p>
         <p v-else-if="activeFilter !== 'all'">Sem itens nesta categoria</p>
         <p v-else>Cofre vazio. Toque no <strong>+</strong> para adicionar.</p>
       </div>
@@ -57,6 +69,7 @@
             <span class="item-title">{{ item.title }}</span>
             <span class="item-type">{{ typeLabel(item.itemType) }}</span>
           </div>
+          <svg v-if="item.isFavorite" class="item-fav-dot" xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
         </li>
       </ul>
     </div>
@@ -65,53 +78,55 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import type { ItemRow, ItemType } from '@/types/vault'
+import type { ItemRow } from '@/types/vault'
+import type { TypeSchema } from '@/types/schema'
 
 const props = defineProps<{
   items: ItemRow[]
+  schemas: TypeSchema[]
   selectedId?: string
 }>()
 
 defineEmits<{ select: [item: ItemRow] }>()
 
 const search = ref('')
-const activeFilter = ref<'all' | ItemType>('all')
+const activeFilter = ref<'all' | 'favorites' | string>('all')
 const typesOpen = ref(true)
 
-const TYPE_META = [
-  { value: 'login' as ItemType,       icon: '🔑', label: 'Login' },
-  { value: 'card' as ItemType,        icon: '💳', label: 'Cartão' },
-  { value: 'secure_note' as ItemType, icon: '📝', label: 'Nota' },
-]
-
-const typeRows = computed(() =>
-  TYPE_META.map((t) => ({
-    ...t,
-    count: props.items.filter((i) => i.itemType === t.value).length,
-  })),
-)
+const favCount = computed(() => props.items.filter(i => i.isFavorite).length)
 
 const filtered = computed(() => {
-  let list = activeFilter.value === 'all'
-    ? props.items
-    : props.items.filter((i) => i.itemType === activeFilter.value)
+  let list: ItemRow[]
+  if (activeFilter.value === 'favorites') {
+    list = props.items.filter(i => i.isFavorite)
+  } else if (activeFilter.value === 'all') {
+    list = props.items
+  } else {
+    list = props.items.filter(i => i.itemType === activeFilter.value)
+  }
   if (search.value) {
     const q = search.value.toLowerCase()
-    list = list.filter((i) => i.title.toLowerCase().includes(q))
+    list = list.filter(i => i.title.toLowerCase().includes(q))
   }
   return list
 })
 
-function toggleFilter(type: ItemType) {
-  activeFilter.value = activeFilter.value === type ? 'all' : type
+const sectionTitle = computed(() => {
+  if (activeFilter.value === 'favorites') return 'PREFERIDAS'
+  if (activeFilter.value === 'all') return 'TODOS'
+  return (props.schemas.find(s => s.id === activeFilter.value)?.name ?? activeFilter.value).toUpperCase()
+})
+
+function toggleFilter(value: string) {
+  activeFilter.value = activeFilter.value === value ? 'all' : value
 }
 
-function typeIcon(type: ItemRow['itemType']): string {
-  return { login: '🔑', card: '💳', secure_note: '📝' }[type] ?? '•'
+function typeIcon(typeId: string): string {
+  return props.schemas.find(s => s.id === typeId)?.icon ?? '•'
 }
 
-function typeLabel(type: ItemRow['itemType']): string {
-  return { login: 'Login', card: 'Cartão', secure_note: 'Nota' }[type] ?? type
+function typeLabel(typeId: string): string {
+  return props.schemas.find(s => s.id === typeId)?.name ?? typeId
 }
 </script>
 
@@ -139,13 +154,31 @@ function typeLabel(type: ItemRow['itemType']): string {
   font-size: 0.85rem;
   outline: none;
 }
-
 .search-bar input:focus { border-color: var(--color-accent); }
 
-/* ── Sections ───────────────────────── */
-.section {
+/* ── Preferidas ─────────────────────── */
+.fav-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.75rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  transition: background 0.1s, color 0.1s;
   flex-shrink: 0;
 }
+.fav-row:hover { background: var(--color-surface-2); }
+.fav-row.active {
+  background: color-mix(in srgb, #f6ad55 12%, transparent);
+  color: #c07a2a;
+}
+
+.fav-label { flex: 1; font-size: 0.875rem; font-weight: 500; }
+.fav-count { font-size: 0.8rem; font-weight: 500; min-width: 1.5rem; text-align: right; }
+
+/* ── Sections ───────────────────────── */
+.section { flex-shrink: 0; }
 
 .section-items {
   flex: 1;
@@ -164,10 +197,7 @@ function typeLabel(type: ItemRow['itemType']): string {
   user-select: none;
 }
 
-.items-header {
-  cursor: default;
-  justify-content: space-between;
-}
+.items-header { cursor: default; justify-content: space-between; }
 
 .section-title {
   font-size: 0.68rem;
@@ -177,17 +207,9 @@ function typeLabel(type: ItemRow['itemType']): string {
   flex: 1;
 }
 
-.section-count {
-  font-weight: 400;
-  color: var(--color-text-muted);
-}
+.section-count { font-weight: 400; color: var(--color-text-muted); }
 
-.chevron {
-  color: var(--color-text-muted);
-  transition: transform 0.2s;
-  flex-shrink: 0;
-}
-
+.chevron { color: var(--color-text-muted); transition: transform 0.2s; flex-shrink: 0; }
 .chevron.open { transform: rotate(180deg); }
 
 .btn-clear-filter {
@@ -217,33 +239,16 @@ function typeLabel(type: ItemRow['itemType']): string {
   transition: background 0.1s;
   border-bottom: 1px solid var(--color-border);
 }
-
 .type-row:last-child { border-bottom: none; }
-
 .type-row:hover { background: var(--color-surface-2); }
-
-.type-row.active {
-  background: color-mix(in srgb, var(--color-accent) 12%, transparent);
-}
+.type-row.active { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
 
 .type-row-icon { font-size: 1rem; flex-shrink: 0; }
 
-.type-row-label {
-  flex: 1;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: var(--color-text);
-}
-
+.type-row-label { flex: 1; font-size: 0.875rem; font-weight: 500; color: var(--color-text); }
 .type-row.active .type-row-label { color: var(--color-accent); }
 
-.type-row-count {
-  font-size: 0.8rem;
-  color: var(--color-text-muted);
-  font-weight: 500;
-  min-width: 1.5rem;
-  text-align: right;
-}
+.type-row-count { font-size: 0.8rem; color: var(--color-text-muted); font-weight: 500; min-width: 1.5rem; text-align: right; }
 
 /* ── Items ──────────────────────────── */
 .empty {
@@ -254,11 +259,7 @@ function typeLabel(type: ItemRow['itemType']): string {
   line-height: 1.6;
 }
 
-.items {
-  list-style: none;
-  overflow-y: auto;
-  flex: 1;
-}
+.items { list-style: none; overflow-y: auto; flex: 1; }
 
 .item {
   display: flex;
@@ -269,9 +270,7 @@ function typeLabel(type: ItemRow['itemType']): string {
   cursor: pointer;
   transition: background 0.1s;
 }
-
 .item:hover { background: var(--color-surface-2); }
-
 .item.selected {
   background: color-mix(in srgb, var(--color-accent) 15%, transparent);
   border-left: 2px solid var(--color-accent);
@@ -279,22 +278,10 @@ function typeLabel(type: ItemRow['itemType']): string {
 
 .item-icon { font-size: 1.1rem; flex-shrink: 0; }
 
-.item-info {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-}
+.item-info { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 
-.item-title {
-  font-size: 0.9rem;
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
+.item-title { font-size: 0.9rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.item-type { font-size: 0.72rem; color: var(--color-text-muted); }
 
-.item-type {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-}
+.item-fav-dot { flex-shrink: 0; color: #d97706; }
 </style>
