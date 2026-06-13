@@ -11,6 +11,7 @@ on:
       - 'apps/web/**'
       - 'core-crypto/**'
       - 'Cargo.toml'
+  workflow_dispatch:
 
 jobs:
   build:
