@@ -224,7 +224,12 @@ async function handleSave(title: string, type: ItemType, payload: ItemPayload) {
       if (isMobileLayout.value && selectedItem.value) mobilePanel.value = 'detail'
     }, 0)
   } catch (e) {
-    saveError.value = e instanceof Error ? e.message : 'Erro ao salvar item'
+    const msg = e instanceof Error ? e.message : ''
+    if (msg.includes('bloqueado') || msg.includes('locked')) {
+      saveError.value = 'Sessão expirada. Saia e volte a entrar.'
+    } else {
+      saveError.value = 'Não foi possível guardar. Tente novamente.'
+    }
   }
 }
 
