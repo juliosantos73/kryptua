@@ -109,7 +109,7 @@
               <label>Titular</label>
               <input v-model="card.holder" type="text" autocomplete="cc-name" placeholder="Nome como no cartão" />
             </div>
-            <div class="row-3">
+            <div class="row-2">
               <div class="field">
                 <label>Validade</label>
                 <input v-model="card.expiry" type="text" placeholder="MM/AA" maxlength="5" autocomplete="cc-exp" />
@@ -118,10 +118,10 @@
                 <label>CVV</label>
                 <PasswordInput v-model="card.cvv" placeholder="•••" autocomplete="cc-csc" />
               </div>
-              <div class="field">
-                <label>PIN</label>
-                <PasswordInput v-model="card.pin" placeholder="••••" autocomplete="off" />
-              </div>
+            </div>
+            <div class="field">
+              <label>PIN</label>
+              <PasswordInput v-model="card.pin" placeholder="PIN do cartão" autocomplete="off" />
             </div>
             <div class="field">
               <label>Notas</label>
@@ -436,10 +436,10 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   gap: 0.8rem;
 }
 
-.row-3 {
+.row-2 {
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 0.6rem;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
 }
 
 /* ── Footer ──────────────────────────── */
