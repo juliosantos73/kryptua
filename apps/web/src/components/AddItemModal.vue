@@ -308,6 +308,8 @@ label {
 }
 
 input, textarea {
+  width: 100%;
+  min-width: 0;
   padding: 0.6rem 0.75rem;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
@@ -440,6 +442,14 @@ input:focus, textarea:focus { border-color: var(--color-accent); }
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+}
+
+.row-2 > * {
+  min-width: 0;
+}
+
+.row-2 :deep(.pw-wrap) {
+  min-width: 0;
 }
 
 /* ── Footer ──────────────────────────── */
