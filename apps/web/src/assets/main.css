@@ -54,3 +54,33 @@ input, textarea {
   background: var(--color-border);
   border-radius: 3px;
 }
+
+/* ── Tema claro ─────────────────────────────────────────────────────────────── */
+:root[data-theme="light"] {
+  --color-bg:          #f0f2fa;
+  --color-surface:     #ffffff;
+  --color-surface-2:   #e8ecf6;
+  --color-border:      #ced4e8;
+  --color-accent:      #6c63ff;
+  --color-accent-hover:#5852e0;
+  --color-text:        #1a1d2e;
+  --color-text-muted:  #636a90;
+  --color-danger:      #e53e3e;
+  --color-success:     #38a169;
+}
+
+/* Sistema em modo claro (sem data-theme explícito) */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --color-bg:          #f0f2fa;
+    --color-surface:     #ffffff;
+    --color-surface-2:   #e8ecf6;
+    --color-border:      #ced4e8;
+    --color-accent:      #6c63ff;
+    --color-accent-hover:#5852e0;
+    --color-text:        #1a1d2e;
+    --color-text-muted:  #636a90;
+    --color-danger:      #e53e3e;
+    --color-success:     #38a169;
+  }
+}

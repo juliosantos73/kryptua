@@ -36,12 +36,10 @@
 
       <form @submit.prevent="handleUnlock">
         <div class="field">
-          <label for="password">Master Password</label>
-          <input
-            id="password"
+          <label>Master Password</label>
+          <PasswordInput
             ref="inputRef"
             v-model="password"
-            type="password"
             placeholder="••••••••••••"
             autocomplete="current-password"
             required
@@ -69,6 +67,7 @@ import { useCryptoStore } from '@/stores/crypto'
 import { useDbStore } from '@/stores/db'
 import { usePlatform } from '@/composables/usePlatform'
 import { useBiometrics } from '@/composables/useBiometrics'
+import PasswordInput from '@/components/PasswordInput.vue'
 
 const router = useRouter()
 const cryptoStore = useCryptoStore()
@@ -79,7 +78,7 @@ const biometrics = useBiometrics()
 const password = ref('')
 const loading = ref(false)
 const errorMsg = ref('')
-const inputRef = ref<HTMLInputElement | null>(null)
+const inputRef = ref<{ focus: () => void } | null>(null)
 const hasBiometric = ref(false)
 
 // Estado do prompt de ativação de biometria
@@ -283,19 +282,6 @@ label {
   margin-bottom: 0.35rem;
 }
 
-input {
-  width: 100%;
-  padding: 0.65rem 0.9rem;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  color: var(--color-text);
-  font-size: 0.95rem;
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-input:focus { border-color: var(--color-accent); }
 
 .error {
   color: var(--color-danger);

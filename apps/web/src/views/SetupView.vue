@@ -51,24 +51,27 @@
         </div>
 
         <div class="field">
-          <label for="password">Master Password</label>
-          <input
-            id="password"
+          <div class="label-row">
+            <label>Master Password</label>
+            <button type="button" class="btn-generate" @click="password = generatePassword()">🎲 Gerar</button>
+          </div>
+          <PasswordInput
             v-model="password"
-            type="password"
             placeholder="Mínimo 12 caracteres"
             autocomplete="new-password"
             required
             minlength="12"
           />
+          <div v-if="password" class="strength-bar-wrap">
+            <div class="strength-bar" :style="{ width: setupStrength.pct + '%', background: setupStrength.color }" />
+            <span class="strength-label" :style="{ color: setupStrength.color }">{{ setupStrength.label }}</span>
+          </div>
         </div>
 
         <div class="field">
-          <label for="confirm">Confirmar Password</label>
-          <input
-            id="confirm"
+          <label>Confirmar Password</label>
+          <PasswordInput
             v-model="confirm"
-            type="password"
             placeholder="Repita a password"
             autocomplete="new-password"
             required
@@ -112,12 +115,10 @@
           </div>
 
           <div class="field">
-            <label for="import-password">Master Password</label>
-            <input
-              id="import-password"
+            <label>Master Password</label>
+            <PasswordInput
               ref="importPasswordRef"
               v-model="importPassword"
-              type="password"
               placeholder="A mesma password do dispositivo de origem"
               autocomplete="current-password"
               required
@@ -136,13 +137,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useDbStore } from '@/stores/db'
 import { useCryptoStore } from '@/stores/crypto'
 import { usePlatform } from '@/composables/usePlatform'
 import { useBiometrics } from '@/composables/useBiometrics'
 import QrScanner from '@/components/QrScanner.vue'
+import PasswordInput from '@/components/PasswordInput.vue'
+import { generatePassword, passwordStrength } from '@/composables/usePasswordGenerator'
 
 const router = useRouter()
 const dbStore = useDbStore()
@@ -163,13 +166,15 @@ const showBioPrompt = ref(false)
 const bioSetupLoading = ref(false)
 let pendingKey: Uint8Array | null = null
 
+const setupStrength = computed(() => passwordStrength(password.value))
+
 // Importar vault
 const importCode = ref('')
 const importPassword = ref('')
 const importError = ref('')
 const importLoading = ref(false)
 const showScanner = ref(false)
-const importPasswordRef = ref<HTMLInputElement | null>(null)
+const importPasswordRef = ref<{ focus: () => void } | null>(null)
 const importCodeRef = ref<HTMLTextAreaElement | null>(null)
 
 async function onScan(code: string) {
@@ -384,6 +389,48 @@ input {
 
 input:focus {
   border-color: var(--color-accent);
+}
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.35rem;
+}
+
+.label-row label {
+  margin-bottom: 0;
+}
+
+.btn-generate {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-generate:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.strength-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.4rem;
+}
+
+.strength-bar {
+  height: 4px;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+  flex-shrink: 0;
+}
+
+.strength-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .error {

@@ -35,13 +35,11 @@
           <div v-if="showPasswordConfirm" class="confirm-block">
             <p class="confirm-hint">Insira a Master Password para confirmar a ativação:</p>
             <div class="confirm-row">
-              <input
+              <PasswordInput
                 ref="confirmInputRef"
                 v-model="confirmPassword"
-                type="password"
                 placeholder="Master Password"
                 autocomplete="current-password"
-                class="confirm-input"
                 @keydown.enter="confirmEnable"
               />
               <button class="btn-confirm" :disabled="bioLoading || !confirmPassword" @click="confirmEnable">
@@ -107,6 +105,24 @@
         </transition>
       </section>
 
+      <!-- ── Aparência ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Aparência</h3>
+        <div class="setting-row no-action">
+          <div class="setting-info">
+            <span class="setting-label">Tema</span>
+          </div>
+          <div class="theme-group">
+            <button
+              v-for="t in themes"
+              :key="t.value"
+              :class="['theme-btn', { active: themeStore.preference === t.value }]"
+              @click="themeStore.set(t.value)"
+            >{{ t.label }}</button>
+          </div>
+        </div>
+      </section>
+
       <!-- ── Versão ── -->
       <section class="settings-section">
         <h3 class="section-title">Aplicação</h3>
@@ -127,7 +143,17 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import QRCode from 'qrcode'
 import { useDbStore } from '@/stores/db'
 import { useBiometrics } from '@/composables/useBiometrics'
+import { useThemeStore } from '@/stores/theme'
+import type { ThemePreference } from '@/stores/theme'
 import type { VaultMeta } from '@/types/vault'
+import PasswordInput from './PasswordInput.vue'
+
+const themeStore = useThemeStore()
+const themes: { value: ThemePreference; label: string }[] = [
+  { value: 'system', label: '💻 Sistema' },
+  { value: 'light',  label: '☀️ Claro' },
+  { value: 'dark',   label: '🌙 Escuro' },
+]
 
 const dbStore = useDbStore()
 const biometrics = useBiometrics()
@@ -139,7 +165,7 @@ const bioError = ref('')
 
 const showPasswordConfirm = ref(false)
 const confirmPassword = ref('')
-const confirmInputRef = ref<HTMLInputElement | null>(null)
+const confirmInputRef = ref<{ focus: () => void } | null>(null)
 
 const vault = ref<VaultMeta | null>(null)
 const vaultName = computed(() => vault.value?.name ?? '—')
@@ -379,6 +405,11 @@ async function disableBiometric() {
   align-items: center;
 }
 
+.confirm-row :deep(.pw-wrap) {
+  flex: 1;
+  min-width: 0;
+}
+
 .confirm-input {
   flex: 1;
   padding: 0.55rem 0.75rem;
@@ -481,6 +512,31 @@ async function disableBiometric() {
   justify-content: center;
   color: var(--color-text-muted);
   font-size: 0.8rem;
+}
+
+/* Selector de tema */
+.theme-group {
+  display: flex;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.theme-btn {
+  padding: 0.35rem 0.7rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.theme-btn.active {
+  background: color-mix(in srgb, var(--color-accent) 15%, transparent);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  font-weight: 600;
 }
 
 /* Animação do bloco de confirmação */

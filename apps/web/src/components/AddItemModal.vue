@@ -34,8 +34,15 @@
             <input v-model="login.username" type="text" autocomplete="off" />
           </div>
           <div class="field">
-            <label>Senha</label>
-            <input v-model="login.password" type="password" autocomplete="new-password" />
+            <div class="label-row">
+              <label>Senha</label>
+              <button type="button" class="btn-generate" @click="login.password = generatePassword()">🎲 Gerar</button>
+            </div>
+            <PasswordInput v-model="login.password" autocomplete="new-password" />
+            <div v-if="login.password" class="strength-bar-wrap">
+              <div class="strength-bar" :style="{ width: loginStrength.pct + '%', background: loginStrength.color }" />
+              <span class="strength-label" :style="{ color: loginStrength.color }">{{ loginStrength.label }}</span>
+            </div>
           </div>
           <div class="field">
             <label>URL</label>
@@ -93,8 +100,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import type { ItemPayload, ItemType } from '@/types/vault'
+import PasswordInput from './PasswordInput.vue'
+import { generatePassword, passwordStrength } from '@/composables/usePasswordGenerator'
+
+const loginStrength = computed(() => passwordStrength(login.password))
 
 const emit = defineEmits<{
   close: []
@@ -270,4 +281,45 @@ input:focus, textarea:focus {
   transition: all 0.15s;
 }
 .btn-ghost:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-generate {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-generate:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.strength-bar-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.3rem;
+  height: 4px;
+  position: relative;
+}
+
+.strength-bar {
+  height: 4px;
+  border-radius: 2px;
+  transition: width 0.3s, background 0.3s;
+  flex-shrink: 0;
+}
+
+.strength-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1;
+  margin-top: -2px;
+}
 </style>
