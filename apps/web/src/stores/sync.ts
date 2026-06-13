@@ -34,9 +34,13 @@ export const useSyncStore = defineStore('sync', () => {
     itemMeta.value = doc.getMap<ItemMeta>('meta')
     itemBlobs.value = doc.getMap<Uint8Array>('blobs')
 
-    // Restaura estado persistido do SQLite
+    // Restaura estado local persistido
     if (savedState?.length) {
-      Y.applyUpdate(doc, savedState)
+      try {
+        Y.applyUpdate(doc, savedState)
+      } catch {
+        // Estado corrompido — ignorar e aguardar sync do relay
+      }
     }
 
     // Incrementa versão a cada mudança para triggers reactivos no Vue

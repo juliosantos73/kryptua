@@ -71,6 +71,42 @@
         </div>
       </section>
 
+      <!-- ── Sincronização ── -->
+      <section class="settings-section">
+        <h3 class="section-title">Sincronização</h3>
+        <div class="setting-row">
+          <div class="setting-info">
+            <span class="setting-label">Exportar vault</span>
+            <span class="setting-desc">Partilha este vault com outro dispositivo</span>
+          </div>
+          <button class="btn-sm" @click="showExportCode = !showExportCode">
+            {{ showExportCode ? 'Fechar' : 'Exportar' }}
+          </button>
+        </div>
+        <transition name="slide">
+          <div v-if="showExportCode" class="export-block">
+            <div class="qr-wrapper">
+              <img v-if="qrDataUrl" :src="qrDataUrl" class="qr-img" alt="QR code do vault" />
+              <div v-else class="qr-placeholder">A gerar...</div>
+            </div>
+            <p class="confirm-hint">
+              Scan no outro dispositivo em <strong>Importar Vault</strong> e usa a mesma Master Password.
+            </p>
+            <div class="confirm-row">
+              <input
+                readonly
+                :value="exportCode"
+                class="confirm-input export-code-input"
+                @focus="($event.target as HTMLInputElement).select()"
+              />
+              <button class="btn-confirm" @click="copyCode">
+                {{ copied ? 'Copiado!' : 'Copiar' }}
+              </button>
+            </div>
+          </div>
+        </transition>
+      </section>
+
       <!-- ── Versão ── -->
       <section class="settings-section">
         <h3 class="section-title">Aplicação</h3>
@@ -87,7 +123,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import QRCode from 'qrcode'
 import { useDbStore } from '@/stores/db'
 import { useBiometrics } from '@/composables/useBiometrics'
 import type { VaultMeta } from '@/types/vault'
@@ -112,6 +149,37 @@ const vaultCreatedAt = computed(() => {
     year: 'numeric', month: 'long', day: 'numeric',
   })
 })
+
+// Export/import
+const showExportCode = ref(false)
+const copied = ref(false)
+const qrDataUrl = ref('')
+
+function saltToBase64(bytes: Uint8Array): string {
+  let bin = ''
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i])
+  return btoa(bin)
+}
+
+const exportCode = computed(() => {
+  if (!vault.value) return ''
+  return btoa(JSON.stringify({ v: 1, id: vault.value.id, salt: saltToBase64(vault.value.salt), name: vault.value.name }))
+})
+
+watch(showExportCode, async (open) => {
+  if (!open || !exportCode.value) return
+  qrDataUrl.value = await QRCode.toDataURL(exportCode.value, {
+    width: 220,
+    margin: 2,
+    color: { dark: '#000000', light: '#ffffff' },
+  })
+})
+
+async function copyCode() {
+  await navigator.clipboard.writeText(exportCode.value)
+  copied.value = true
+  setTimeout(() => { copied.value = false }, 2000)
+}
 
 onMounted(async () => {
   vault.value = await dbStore.loadVault()
@@ -359,6 +427,60 @@ async function disableBiometric() {
   font-size: 0.78rem;
   color: var(--color-danger);
   margin-top: 0.5rem;
+}
+
+.btn-sm {
+  padding: 0.4rem 0.85rem;
+  background: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-sm:hover { border-color: var(--color-accent); color: var(--color-accent); }
+
+.export-block {
+  padding: 0.75rem 1.5rem 1rem;
+  background: var(--color-surface);
+  border-top: 1px solid var(--color-border);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.export-code-input {
+  font-family: monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0;
+  cursor: text;
+  user-select: all;
+}
+
+.qr-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.qr-img {
+  width: 220px;
+  height: 220px;
+  border-radius: var(--radius);
+  border: 6px solid #fff;
+  display: block;
+}
+
+.qr-placeholder {
+  width: 220px;
+  height: 220px;
+  background: var(--color-surface-2);
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
 }
 
 /* Animação do bloco de confirmação */

@@ -67,7 +67,7 @@ watch(
       const json = cryptoStore.decryptItem(item.encryptedPayload)
       payload.value = JSON.parse(json) as ItemPayload
     } catch {
-      loadError.value = 'Não foi possível decriptar o item.'
+      loadError.value = 'Não foi possível decriptar este item. Verifique se a Master Password é a mesma do dispositivo de origem.'
     }
   },
   { immediate: true },

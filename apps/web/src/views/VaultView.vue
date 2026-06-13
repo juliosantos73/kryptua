@@ -42,7 +42,20 @@
         <div :class="['sync-dot-sm', syncStore.status]" :title="syncLabel" />
       </div>
 
+      <!-- Loading state: a ligar ao relay e vault ainda vazio -->
+      <div v-if="syncLoading" class="sync-loading">
+        <div class="sync-spinner" />
+        <p class="sync-loading-title">A sincronizar vault...</p>
+        <p class="sync-loading-hint">Os seus dados estão a ser carregados</p>
+      </div>
+
+      <!-- Offline banner: relay inacessível há demasiado tempo -->
+      <div v-if="offlineTooLong" class="offline-banner">
+        Sem ligação ao servidor — a funcionar com dados locais
+      </div>
+
       <ItemList
+        v-show="!syncLoading"
         :items="filteredItems"
         :selected-id="selectedItem?.id"
         @select="onItemSelect"
@@ -107,7 +120,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useCryptoStore } from '@/stores/crypto'
 import { useDbStore } from '@/stores/db'
@@ -169,6 +182,35 @@ const filteredItems = computed(() =>
 )
 
 const vault = ref<VaultMeta | null>(null)
+
+// Sync resilience ─────────────────────────────────────────────────────────────
+
+// Mostra loading enquanto está a ligar E ainda não há itens locais
+const syncLoading = computed(() =>
+  syncStore.status === 'connecting' && allItems.value.length === 0,
+)
+
+// Após 10 s em connecting sem itens → modo offline
+const offlineTooLong = ref(false)
+let offlineTimer: ReturnType<typeof setTimeout> | null = null
+
+watch(
+  () => syncStore.status,
+  (s) => {
+    if (offlineTimer) { clearTimeout(offlineTimer); offlineTimer = null }
+    if (s === 'connecting' || s === 'error') {
+      offlineTimer = setTimeout(() => { offlineTooLong.value = true }, 10_000)
+    } else {
+      offlineTooLong.value = false
+    }
+  },
+)
+
+onBeforeUnmount(() => {
+  if (offlineTimer) clearTimeout(offlineTimer)
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 let persistTimer: ReturnType<typeof setTimeout> | null = null
 function schedulePersist() {
@@ -472,6 +514,51 @@ function lock() {
   font-size: 0.65rem;
   font-weight: 500;
   line-height: 1;
+}
+
+/* Sync loading state */
+.sync-loading {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 2rem;
+  color: var(--color-text-muted);
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.sync-spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+.sync-loading-title {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--color-text);
+}
+
+.sync-loading-hint {
+  font-size: 0.78rem;
+  text-align: center;
+}
+
+.offline-banner {
+  background: color-mix(in srgb, #f6ad55 15%, transparent);
+  border-bottom: 1px solid #f6ad55;
+  color: #c07a2a;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 0.4rem 1rem;
+  text-align: center;
+  flex-shrink: 0;
 }
 
 .save-error-toast {
