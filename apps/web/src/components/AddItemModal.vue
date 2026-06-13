@@ -250,7 +250,10 @@ onMounted(() => {
 
 function handleSave() {
   error.value = ''
-  const payload: ItemPayload = { type: form.typeId, data: { ...form.data } }
+  // Coerce all values to string — input type="number" can yield numbers
+  const data: Record<string, string> = {}
+  for (const [k, v] of Object.entries(form.data)) data[k] = String(v ?? '')
+  const payload: ItemPayload = { type: form.typeId, data }
   emit('save', props.editData?.id ?? null, form.title, form.typeId, payload, props.editData?.createdAt)
 }
 </script>

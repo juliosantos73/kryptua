@@ -40,7 +40,7 @@
           v-for="field in currentSchema.fields"
           :key="field.key"
           :label="field.label"
-          :value="payload.data[field.key] ?? ''"
+          :value="String(payload.data[field.key] ?? '')"
           :copyable="field.copyable"
           :secret="field.masked"
           :multiline="field.fieldType === 'textarea'"
@@ -52,7 +52,7 @@
           v-for="(value, key) in payload.data"
           :key="key"
           :label="String(key)"
-          :value="value"
+          :value="String(value ?? '')"
           copyable
         />
       </template>
