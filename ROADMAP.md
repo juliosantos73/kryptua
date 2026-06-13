@@ -47,7 +47,17 @@
 - [ ] Convite por link cifrado (chave pública do convidado)
 - [ ] Permissões por item (leitura / edição)
 
-### Fase 6 — Polimento e segurança
+### Fase 6 — Internacionalização (i18n)
+- [ ] Configurar vue-i18n (ou similar)
+- [ ] Extrair todas as strings da UI para ficheiros de tradução
+- [ ] Português do Brasil (pt-BR) — língua base
+- [ ] Português de Portugal (pt-PT)
+- [ ] Espanhol (es)
+- [ ] Inglês (en)
+- [ ] Deteção automática do idioma do sistema
+- [ ] Seletor de idioma nas Definições
+
+### Fase 7 — Polimento e segurança
 - [ ] Auditoria de segurança externa
 - [ ] Timeout de sessão configurável (auto-lock após X minutos)
 - [ ] Histórico de versões por item (rollback de edições)
