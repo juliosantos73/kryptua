@@ -1,0 +1,1 @@
+* Local do sdk android => /home/julio/android-sdk/platform-tools/adb
